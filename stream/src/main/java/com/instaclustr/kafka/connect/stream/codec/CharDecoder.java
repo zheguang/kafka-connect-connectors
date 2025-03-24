@@ -1,0 +1,196 @@
+package com.instaclustr.kafka.connect.stream.codec;
+
+import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigDef;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+public class CharDecoder implements Closeable {
+    public static final String CHARACTER_SET = "character.set";
+    public static final ConfigDef CONFIG_DEF = new ConfigDef()
+            .define(CHARACTER_SET, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Character set");
+
+    private static final Logger log = LoggerFactory.getLogger(CharDecoder.class);
+
+    // byte oriented
+    private final InputStream stream;
+    private long streamOffset;
+
+    // character oriented
+    private final Charset charset;
+    private final Reader reader;
+    private char[] buffer;
+    private int offset;
+
+    private static final int INIT_BUFFER_SIZE = 1024;
+    private static final Set<Charset> SUPPORTED_CHARSETS = Set.of(StandardCharsets.UTF_8, StandardCharsets.UTF_16);
+
+    CharDecoder(InputStream stream, long streamOffset,
+                Reader reader, Charset charset, char[] buffer, int offset) {
+        this.stream = stream;
+        this.streamOffset = streamOffset;
+
+        this.charset = charset;
+        this.reader = reader;
+        this.buffer = buffer;
+        this.offset = offset;
+    }
+
+    public static CharDecoder of(InputStream stream, Map<String, String> config) throws CodecError {
+        AbstractConfig validConfig = new AbstractConfig(CONFIG_DEF, config);
+        Charset charset = Charset.forName(validConfig.getString(CHARACTER_SET));
+        return of(stream, charset);
+    }
+
+    public static CharDecoder of(InputStream stream, Charset charset) throws CodecError {
+        return of(stream, charset, INIT_BUFFER_SIZE);
+    }
+
+    // For testing
+    static CharDecoder of(InputStream stream, Charset charset, int initBufferSize) throws CodecError {
+        if (!SUPPORTED_CHARSETS.contains(charset)) {
+            throw new CodecError("Unsupported: " + charset.name());
+        }
+        Reader reader = new BufferedReader(new InputStreamReader(stream, charset));
+        char[] buffer = new char[initBufferSize];
+        return new CharDecoder(stream, byteMarkLengthOf(charset),
+                reader, charset, buffer, 0);
+    }
+
+    public void skipFirstBytes(final long numBytes) throws IOException {
+        long skipLeft = numBytes;
+        while (skipLeft > 0) {
+            long skipped = stream.skip(skipLeft);
+            skipLeft -= skipped;
+        }
+        streamOffset = numBytes;
+    }
+
+    @Override
+    public void close() throws IOException {
+        stream.close();
+    }
+
+    public List<CharRecord> next(int batchSize) throws IOException {
+        List<CharRecord> records = null;
+        int nread = 0;
+        boolean endOfStream = false;
+        while (reader.ready() && !endOfStream) {
+            nread = reader.read(buffer, offset, buffer.length - offset);
+            log.debug("Read {} characters from stream", nread);
+            if (nread == -1) {
+                log.debug("End of stream");
+                endOfStream = true;
+            } else {
+                // Must have nread >= 0 due to constrained return value range of BufferedReader.read()
+                offset += nread;
+            }
+
+            String line;
+            boolean foundOneLine = false;
+            do {
+                line = extractLine(endOfStream);
+                if (line != null) {
+                    foundOneLine = true;
+                    log.debug("Extracted a line from buffer");
+                    if (records == null)
+                        records = new ArrayList<>();
+                    records.add(new CharRecord(line, streamOffset));
+
+                    if (records.size() >= batchSize) {
+                        log.debug("Return records in full batch: size=" + records.size());
+                        return records;
+                    }
+                }
+            } while (line != null);
+
+            if (!foundOneLine && offset == buffer.length) {
+                char[] newbuf = new char[buffer.length * 2];
+                System.arraycopy(buffer, 0, newbuf, 0, buffer.length);
+                log.info("Increased buffer from {} to {}", buffer.length, newbuf.length);
+                buffer = newbuf;
+            }
+        }
+        return records;
+    }
+
+    private String extractLine(boolean endOfStream) throws IOException {
+
+        if (endOfStream && offset == 0) {
+            // repetitive reads over empty stream
+            return null;
+        }
+
+        int until = -1, newStart = -1;
+        for (int i = 0; i < offset; i++) {
+            if (buffer[i] == '\n') {
+                until = i;
+                newStart = i + 1;
+                break;
+            } else if (buffer[i] == '\r') {
+                // Check for \r\n to skip, so we must skip this if we can't check the next char
+                if (i + 1 >= offset)
+                    return null;
+
+                until = i;
+                newStart = (buffer[i + 1] == '\n') ? i + 2 : i + 1;
+                break;
+            }
+        }
+
+        if (until == -1 && endOfStream) {
+            // end of stream, but last line is not terminated with linefeed
+            until = offset;
+            newStart = offset; // not +1 to avoid pointing at out-of-bound location
+        }
+
+        if (until != -1) {
+            String result = new String(buffer, 0, until); // convert to UTF16
+
+            System.arraycopy(buffer, newStart, buffer, 0, buffer.length - newStart);
+            offset = offset - newStart;
+            streamOffset += numBytesOf(newStart);
+            return result;
+        } else {
+            return null;
+        }
+    }
+
+    private static int byteMarkLengthOf(Charset charset) throws CodecError {
+        if (charset.equals(StandardCharsets.UTF_8)) {
+            return 0;
+        } else if (charset.equals(StandardCharsets.UTF_16)) {
+            return 2;
+        } else {
+            throw new CodecError("Unsupported: " + charset.name());
+        }
+    }
+
+    private int numBytesOf(int numChars) throws CodecError {
+        if (charset.equals(StandardCharsets.UTF_8)) {
+            return numChars;
+        } else if (charset.equals(StandardCharsets.UTF_16)) {
+            return numChars * 2; // not account for byte mark at the start of file
+        } else {
+            throw new CodecError("Unsupported: " + charset.name());
+        }
+    }
+
+    // visible for testing
+    int bufferSize() {
+        return buffer.length;
+    }
+
+    Charset getCharset() {
+        return charset;
+    }
+}

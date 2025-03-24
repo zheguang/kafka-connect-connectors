@@ -6,33 +6,37 @@
         <artifactId>instaclustr-connectors</artifactId>
         <groupId>com.instaclustr.kafkaconnect</groupId>
         <version>0.2.1</version>
-        <relativePath>pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>distribution</artifactId>
-    <packaging>pom</packaging>
-    <version>0.1.4</version>
+    <artifactId>instaclustr-stream-connector</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
 
     <dependencies>
         <dependency>
-            <groupId>com.instaclustr.kafkaconnect</groupId>
-            <artifactId>instaclustr-s3-connector</artifactId>
-            <version>0.1.4</version>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>1.12.39</version>
         </dependency>
         <dependency>
-            <groupId>com.instaclustr.kafkaconnect</groupId>
-            <artifactId>instaclustr-sla-connector</artifactId>
-            <version>0.1.3</version>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-sts</artifactId>
+            <version>1.12.39</version>
         </dependency>
         <dependency>
-            <groupId>com.instaclustr.kafkaconnect</groupId>
-            <artifactId>instaclustr-stream-connector</artifactId>
-            <version>0.1.0</version>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
         </dependency>
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -41,6 +45,12 @@
                     <descriptors>
                         <descriptor>package.xml</descriptor>
                     </descriptors>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                    </archive>
                 </configuration>
                 <executions>
                     <execution>
