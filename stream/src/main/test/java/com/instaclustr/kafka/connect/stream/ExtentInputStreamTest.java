@@ -41,11 +41,6 @@ public class ExtentInputStreamTest {
     }
 
     @Test
-    public void defaultMaxExtentSize() {
-        assertEquals(ExtentInputStream.DEFAULT_MAX_EXTENT_SIZE, 64 * 1024 * 1024);
-    }
-
-    @Test
     public void readEmptyFile() throws IOException {
         try (var extent = Files.newInputStream(tempFile.toPath())) {
             when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
@@ -75,7 +70,7 @@ public class ExtentInputStreamTest {
             assertEquals(fileSize, 3);
             int result;
             for (int i = 0; i < fileSize; i++) {
-                result = stream.read();
+                result = readOneByte();
                 assertEquals(result, contentBytes[i]);
                 assertEquals(stream.getFileOffset(), i + 1);
             }
@@ -84,8 +79,9 @@ public class ExtentInputStreamTest {
     }
 
     private void assertEof() throws IOException {
+        byte[] b = new byte[1];
         for (int i = 0; i < 10; i ++) {
-            assertEquals(stream.read(), -1);
+            assertEquals(stream.read(b), -1);
         }
     }
 
@@ -116,14 +112,14 @@ public class ExtentInputStreamTest {
             // first extent: 123
             int result;
             for (int i = 0; i < extentStride; i++) {
-                result = stream.read();
+                result = readOneByte();
                 assertEquals(result, contentBytes[i]);
                 assertEquals(stream.getFileOffset(), i + 1);
             }
 
             // second extent: 456
             for (int i = 0; i < extentStride; i++) {
-                result = stream.read();
+                result = readOneByte();
                 assertEquals(result, contentBytes2[i]);
                 assertEquals(stream.getFileOffset(), extentStride + i + 1);
             }
@@ -132,6 +128,13 @@ public class ExtentInputStreamTest {
         } finally {
             Files.deleteIfExists(tempFile2.toPath());
         }
+    }
+
+    private int readOneByte() throws IOException {
+        byte[] b = new byte[10];
+        int n = stream.read(b, 0, 1);
+        assertEquals(n, 1);
+        return b[0];
     }
 
     @Test
@@ -157,7 +160,7 @@ public class ExtentInputStreamTest {
             // second extent: 456
             int result;
             for (int i = 0; i < extentStride; i++) {
-                result = stream.read();
+                result = readOneByte();
                 assertEquals(result, contentBytes2[i]);
                 assertEquals(stream.getFileOffset(), extentStride + i + 1);
             }
@@ -193,17 +196,26 @@ public class ExtentInputStreamTest {
     }
 
     @Test
-    public void availableWhenExtentAvailable() throws IOException {
-        InputStream extent = mock(InputStream.class);
-        when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+    public void availableWhenHavingNextExtent() throws IOException {
+        long fileSize = 4; // extent1=3 bytes, extent2=1 byte
+        long extentStride = 3;
+        long extentSize = extentStride;
+        long extentStartOffset = 0;
+        long extentPosition = extentSize; // at the end of extent1
+        long fileOffset = extentPosition;
 
+        InputStream inputStream = mock(InputStream.class);
+
+        stream = new ExtentInputStream(inputStream, FILE_NAME, fileSize, null, extentStride, extentSize, extentStartOffset, extentPosition, fileOffset);
+        assertEquals(stream.available(), 4 - 3);
+    }
+
+    @Test
+    public void availableWhenExtentAvailable() throws IOException {
         long fileSize = 123;
         long extentStride = 3;
-        int extentAvailable = (int) fileSize / 2;
-        when(extent.available()).thenReturn(extentAvailable);
 
         stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
-        assertEquals(stream.available(), extentAvailable);
-        verify(extent, times(1)).available();
+        assertEquals(stream.available(), extentStride);
     }
 }
