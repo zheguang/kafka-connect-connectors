@@ -6,13 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class CharDecoder implements Closeable {
     public static final String CHARACTER_SET = "character.set";
@@ -72,7 +71,7 @@ public class CharDecoder implements Closeable {
             long skipped = stream.skip(skipLeft);
             skipLeft -= skipped;
         }
-        streamOffset = numBytes;
+        streamOffset = byteMarkLengthOf(charset) + numBytes;
     }
 
     @Override
@@ -155,10 +154,11 @@ public class CharDecoder implements Closeable {
 
         if (until != -1) {
             String result = new String(buffer, 0, until); // convert to UTF16
+            int bytesUntilNewStart = numBytesOf(charset, buffer, 0, newStart);
 
             System.arraycopy(buffer, newStart, buffer, 0, buffer.length - newStart);
             offset = offset - newStart;
-            streamOffset += numBytesOf(newStart);
+            streamOffset += bytesUntilNewStart;
             return result;
         } else {
             return null;
@@ -175,13 +175,33 @@ public class CharDecoder implements Closeable {
         }
     }
 
-    private int numBytesOf(int numChars) throws CodecError {
+    static int numBytesOf(Charset charset, char[] cb, int offset, int length) throws CodecError {
         if (charset.equals(StandardCharsets.UTF_8)) {
-            return numChars;
+            int result = 0;
+            for (int i = 0; i < length; i++) {
+                result += numBytesOfUtf8Char(cb[offset + i]);
+            }
+            return result;
         } else if (charset.equals(StandardCharsets.UTF_16)) {
-            return numChars * 2; // not account for byte mark at the start of file
+            return (length - offset) * 2;
         } else {
             throw new CodecError("Unsupported: " + charset.name());
+        }
+    }
+
+    static int numBytesOfUtf8Char(char c) {
+        if (c < 0x80) {
+            // Have at most seven bits
+            return 1;
+        } else if (c < 0x800) {
+            // 2 bytes, 11 bits
+            return 2;
+        } else if (Character.isSurrogate(c)) {
+            // Have a surrogate pair
+            return 4; // 2 chars
+        } else {
+            // 3 bytes, 16 bits
+            return 3;
         }
     }
 

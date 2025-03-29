@@ -54,9 +54,11 @@ public class CharDecoderTest {
 
         CharRecord record = records.get(0);
         assertEquals(record.getRecord(), "");
+        assertEquals(record.getStreamOffset(), 1);
 
         record = records.get(1);
         assertEquals(record.getRecord(), "foo");
+        assertEquals(record.getStreamOffset(), 5);
     }
 
     @Test
@@ -165,7 +167,9 @@ public class CharDecoderTest {
         List<CharRecord> records = decoder.next(2);
         assertEquals(records.size(), 2);
         assertEquals(records.get(0).getRecord(), "foo");
+        assertEquals(records.get(0).getStreamOffset(), 2 + 4 * 2);
         assertEquals(records.get(1).getRecord(), "bar");
+        assertEquals(records.get(1).getStreamOffset(), 2 + 4 * 2 + 4 * 2);
     }
 
     private void writeAndAssertBufferSize(int batchSize, OutputStream os, byte[] bytes, int expectBufferSize)
