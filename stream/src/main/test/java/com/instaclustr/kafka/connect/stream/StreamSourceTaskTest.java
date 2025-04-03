@@ -33,7 +33,7 @@ public class StreamSourceTaskTest {
         tempFile = File.createTempFile("file-stream-source-task-test", null);
         config = new HashMap<>();
         config.put(Endpoints.ENDPOINT_TYPE, Endpoints.LOCAL_FILE);
-        config.put(StreamSourceConnector.FILE_CONFIG, tempFile.getAbsolutePath());
+        config.put(StreamSourceConnector.FILES_CONFIG, tempFile.getAbsolutePath());
         config.put(StreamSourceConnector.TOPIC_CONFIG, TOPIC);
         config.put(StreamSourceConnector.TASK_BATCH_SIZE_CONFIG, String.valueOf(StreamSourceConnector.DEFAULT_TASK_BATCH_SIZE));
         config.put(CharDecoder.CHARACTER_SET, StandardCharsets.UTF_8.name());
@@ -102,12 +102,14 @@ public class StreamSourceTaskTest {
         verifyAll();
     }
 
-    @Test(expectedExceptions = ConnectException.class)
+    @Test
     public void testInvalidFile() throws InterruptedException {
-        config.put(StreamSourceConnector.FILE_CONFIG, "bogusfilename");
+        config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename");
         task.start(config);
-        for (int i = 0; i < 3; i++)
-            task.poll(); // should throw error
+        for (int i = 0; i < 3; i++) {
+            var res = task.poll(); // should continue processing, but log error
+            assertNull(res);
+        }
     }
 
     private void expectOffsetLookupReturnNone() {

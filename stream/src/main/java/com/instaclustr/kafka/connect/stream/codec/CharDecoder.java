@@ -79,10 +79,20 @@ public class CharDecoder implements Closeable {
         stream.close();
     }
 
+    /**
+     * Get next batch of decoded records.
+     * @param batchSize
+     * @return null if underlying stream has no bytes available to read yet, or has some available bytes to read but
+     * not enough yet for decoding a single record; otherwise a nonempty list of size no more than the batchSize.
+     * @throws IOException
+     */
     public List<CharRecord> next(int batchSize) throws IOException {
         List<CharRecord> records = null;
         int nread = 0;
         boolean endOfStream = false;
+        // Reader over S3's stream appears to ready() == true even when EOF
+        // Local filesystem however is !ready() when EOF
+        // So we need to test both conditions here for EOF
         while (reader.ready() && !endOfStream) {
             nread = reader.read(buffer, offset, buffer.length - offset);
             log.debug("Read {} characters from stream", nread);
@@ -146,11 +156,11 @@ public class CharDecoder implements Closeable {
             }
         }
 
-        if (until == -1 && endOfStream) {
+        /*if (until == -1 && endOfStream) {
             // end of stream, but last line is not terminated with linefeed
             until = offset;
             newStart = offset; // not +1 to avoid pointing at out-of-bound location
-        }
+        }*/
 
         if (until != -1) {
             String result = new String(buffer, 0, until); // convert to UTF16

@@ -16,13 +16,13 @@ import java.util.Map;
 public class StreamSourceConnector extends SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(StreamSourceConnector.class);
     public static final String TOPIC_CONFIG = "topic";
-    public static final String FILE_CONFIG = "file";
+    public static final String FILES_CONFIG = "files";
     public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
 
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(FILE_CONFIG, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Source filename.")
+            .define(FILES_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Source filenames.")
             .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
             .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
                     "The maximum number of records the source task can read from the file each time it is polled");
@@ -33,8 +33,8 @@ public class StreamSourceConnector extends SourceConnector {
     public void start(final Map<String, String> props) {
         this.props = props;
         AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);
-        String filename = config.getString(FILE_CONFIG);
-        log.info("Start S3 source connector reading from {} for topic {}", filename, config.getString(TOPIC_CONFIG));
+        List<String> filenames = config.getList(FILES_CONFIG);
+        log.info("Start S3 source connector reading from {} for topic {}", filenames, config.getString(TOPIC_CONFIG));
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
+import com.instaclustr.kafka.connect.stream.StreamSourceTask;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -7,8 +8,6 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,8 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
+import static org.testng.Assert.*;
 
 public class CharDecoderTest {
 
@@ -72,7 +70,13 @@ public class CharDecoderTest {
             os.flush();
         }
 
+        // First read has available input but not enough to decode a line
         List<CharRecord> records = decoder.next(2);
+        assertNotNull(records);
+        assertTrue(records.isEmpty());
+
+        // Second read reaches EOF
+        records = decoder.next(2);
         assertNull(records);
     }
 
