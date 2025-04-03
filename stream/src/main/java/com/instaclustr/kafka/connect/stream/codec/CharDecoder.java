@@ -89,30 +89,31 @@ public class CharDecoder implements Closeable {
     public List<CharRecord> next(int batchSize) throws IOException {
         List<CharRecord> records = null;
         int nread = 0;
-        boolean endOfStream = false;
         // Reader over S3's stream appears to ready() == true even when EOF
         // Local filesystem however is !ready() when EOF
         // So we need to test both conditions here for EOF
-        while (reader.ready() && !endOfStream) {
+        while (reader.ready()) {
             nread = reader.read(buffer, offset, buffer.length - offset);
             log.debug("Read {} characters from stream", nread);
             if (nread == -1) {
-                log.debug("End of stream");
-                endOfStream = true;
-            } else {
-                // Must have nread >= 0 due to constrained return value range of BufferedReader.read()
-                offset += nread;
+                // End of stream
+                break;
+            } else if (nread == 0) {
+                // No character decoded from stream input
+                break;
             }
+            // Must have nread > 0 due to constrained return value range of BufferedReader.read()
+            offset += nread;
+            if (records == null)
+                records = new ArrayList<>();
 
             String line;
             boolean foundOneLine = false;
             do {
-                line = extractLine(endOfStream);
+                line = extractLine();
                 if (line != null) {
                     foundOneLine = true;
                     log.debug("Extracted a line from buffer");
-                    if (records == null)
-                        records = new ArrayList<>();
                     records.add(new CharRecord(line, streamOffset));
 
                     if (records.size() >= batchSize) {
@@ -132,13 +133,7 @@ public class CharDecoder implements Closeable {
         return records;
     }
 
-    private String extractLine(boolean endOfStream) throws IOException {
-
-        if (endOfStream && offset == 0) {
-            // repetitive reads over empty stream
-            return null;
-        }
-
+    private String extractLine() throws IOException {
         int until = -1, newStart = -1;
         for (int i = 0; i < offset; i++) {
             if (buffer[i] == '\n') {

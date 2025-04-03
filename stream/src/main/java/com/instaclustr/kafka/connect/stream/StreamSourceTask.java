@@ -95,7 +95,6 @@ public class StreamSourceTask extends SourceTask {
                 return null;
             }
 
-            assert ! charRecords.isEmpty();
             if (charRecords.isEmpty()) {
                 log.debug("Read some new bytes from stream, but not enough yet to decode any record");
                 // Not counting towards a retry
