@@ -84,8 +84,8 @@ public class StreamSourceTask extends SourceTask {
         try {
             String filename = filenames.element();
             List<CharRecord> charRecords = decoder.next(batchSize);
-            numTries++;
             if (charRecords == null) {
+                numTries++;
                 log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);
                 if (numTries >= MAX_TRIES) {
                     log.debug("Reached retry limit: {}, file: {}", numTries, filename);

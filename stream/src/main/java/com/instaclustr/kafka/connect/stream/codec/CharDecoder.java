@@ -82,8 +82,9 @@ public class CharDecoder implements Closeable {
     /**
      * Get next batch of decoded records.
      * @param batchSize
-     * @return null if underlying stream has no bytes available to read yet, or has some available bytes to read but
-     * not enough yet for decoding a single record; otherwise a nonempty list of size no more than the batchSize.
+     * @return null if underlying stream has no bytes available to read yet; an empty list if underlying stream has
+     * some available bytes to read but not enough yet for decoding a single record; otherwise a nonempty list of size
+     * no more than the batchSize.
      * @throws IOException
      */
     public List<CharRecord> next(int batchSize) throws IOException {
