@@ -189,7 +189,7 @@ public class CharDecoder implements Closeable {
             }
             return result;
         } else if (charset.equals(StandardCharsets.UTF_16)) {
-            return (length - offset) * 2;
+            return length * 2;
         } else {
             throw new CodecError("Unsupported: " + charset.name());
         }
@@ -218,5 +218,9 @@ public class CharDecoder implements Closeable {
 
     Charset getCharset() {
         return charset;
+    }
+
+    long getStreamOffset() {
+        return streamOffset;
     }
 }

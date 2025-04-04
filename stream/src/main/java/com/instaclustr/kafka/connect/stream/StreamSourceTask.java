@@ -10,10 +10,8 @@ import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.xml.transform.Source;
 import java.io.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class StreamSourceTask extends SourceTask {
 
@@ -21,8 +19,6 @@ public class StreamSourceTask extends SourceTask {
     public static final String FILENAME_FIELD = "filename";
     public  static final String POSITION_FIELD = "position";
     private static final Schema VALUE_SCHEMA = Schema.STRING_SCHEMA;
-    private static final long POLL_WAIT_MS = 1000;
-    public static final int MAX_TRIES = 10;
 
     private Endpoint endpoint;
     private Queue<String> filenames; // head of the queue is the current file
@@ -32,6 +28,8 @@ public class StreamSourceTask extends SourceTask {
 
     private CharDecoder decoder = null;
     private int numTries = 0;
+    private int maxReadRetries;
+    private long pollThrottleMs;
 
     // For Plugins to load this class
     public StreamSourceTask() {}
@@ -52,6 +50,9 @@ public class StreamSourceTask extends SourceTask {
 
         // Set decoder to null so poll() opens a fresh stream
         decoder = null;
+        numTries = 0;
+        maxReadRetries = connectorConfig.getInt(StreamSourceConnector.READ_RETRIES);
+        pollThrottleMs = connectorConfig.getLong(StreamSourceConnector.POLL_THROTTLE_MS);
 
         this.props = props;
 
@@ -87,8 +88,8 @@ public class StreamSourceTask extends SourceTask {
             if (charRecords == null) {
                 numTries++;
                 log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);
-                if (numTries >= MAX_TRIES) {
-                    log.debug("Reached retry limit: {}, file: {}", numTries, filename);
+                if (numTries > maxReadRetries) { // 1 + retries = total number of tries
+                    log.debug("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
                     closeForNextFile();
                 }
                 waitForThrottle();
@@ -138,7 +139,7 @@ public class StreamSourceTask extends SourceTask {
                 result = CharDecoder.of(inputStream, props);
 
                 Map<String, Object> offset = context.offsetStorageReader().offset(Collections.singletonMap(FILENAME_FIELD, filenames));
-                log.debug("Read offset: {}, thread ID", offset);
+                log.debug("Read offset: {}, thread ID: {}", offset, Thread.currentThread().getId());
                 if (offset != null) {
                     Object lastRecordedOffset = offset.get(POSITION_FIELD);
                     if (lastRecordedOffset != null && !(lastRecordedOffset instanceof Long))
@@ -161,8 +162,8 @@ public class StreamSourceTask extends SourceTask {
 
     private void waitForThrottle() throws InterruptedException {
         synchronized (this) {
-            log.debug("Waiting for throttle: {} ms", POLL_WAIT_MS);
-            this.wait(POLL_WAIT_MS);
+            log.debug("Waiting for poll throttle: {} ms", pollThrottleMs);
+            this.wait(pollThrottleMs);
         }
     }
 
@@ -208,5 +209,10 @@ public class StreamSourceTask extends SourceTask {
 
     private Map<String, Long> offsetValue(Long pos) {
         return Collections.singletonMap(POSITION_FIELD, pos);
+    }
+
+    // Visible for testing
+    void setEndpoint(final Endpoint endpoint) {
+        this.endpoint = endpoint;
     }
 }

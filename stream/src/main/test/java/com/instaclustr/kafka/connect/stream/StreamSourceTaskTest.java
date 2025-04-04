@@ -1,7 +1,6 @@
 package com.instaclustr.kafka.connect.stream;
 
 import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTaskContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
@@ -9,10 +8,15 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.*;
@@ -21,8 +25,10 @@ import static org.testng.Assert.*;
 public class StreamSourceTaskTest {
 
     private static final String TOPIC = "test";
+    private static final int MAX_READ_RETRIES = 3;
 
     private File tempFile;
+    private File tempFile2;
     private Map<String, String> config;
     private OffsetStorageReader offsetStorageReader;
     private SourceTaskContext context;
@@ -31,11 +37,14 @@ public class StreamSourceTaskTest {
     @BeforeMethod
     public void setup() throws IOException {
         tempFile = File.createTempFile("file-stream-source-task-test", null);
+        tempFile2 = File.createTempFile("file2-stream-source-task-test", null);
         config = new HashMap<>();
         config.put(Endpoints.ENDPOINT_TYPE, Endpoints.LOCAL_FILE);
-        config.put(StreamSourceConnector.FILES_CONFIG, tempFile.getAbsolutePath());
+        config.put(StreamSourceConnector.FILES_CONFIG, tempFile.getAbsolutePath() + "," + tempFile2.getAbsolutePath());
         config.put(StreamSourceConnector.TOPIC_CONFIG, TOPIC);
         config.put(StreamSourceConnector.TASK_BATCH_SIZE_CONFIG, String.valueOf(StreamSourceConnector.DEFAULT_TASK_BATCH_SIZE));
+        config.put(StreamSourceConnector.READ_RETRIES, String.valueOf(MAX_READ_RETRIES));
+        config.put(StreamSourceConnector.POLL_THROTTLE_MS, String.valueOf(10));
         config.put(CharDecoder.CHARACTER_SET, StandardCharsets.UTF_8.name());
         task = new StreamSourceTask();
         offsetStorageReader = mock(OffsetStorageReader.class);
@@ -96,6 +105,10 @@ public class StreamSourceTaskTest {
         assertEquals(Collections.singletonMap(StreamSourceTask.FILENAME_FIELD, tempFile.getAbsolutePath()), records.get(0).sourcePartition());
         assertEquals(Collections.singletonMap(StreamSourceTask.POSITION_FIELD, 48L), records.get(0).sourceOffset());
 
+        // No more stream to read
+        records = task.poll();
+        assertNull(records);
+
         os.close();
         task.stop();
 
@@ -103,18 +116,157 @@ public class StreamSourceTaskTest {
     }
 
     @Test
-    public void testInvalidFile() throws InterruptedException {
-        config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename");
+    public void testTwoFiles() throws IOException, InterruptedException {
+        expectOffsetLookupReturnNone();
         task.start(config);
-        for (int i = 0; i < 3; i++) {
-            var res = task.poll(); // should continue processing, but log error
-            assertNull(res);
+        Endpoint endpoint = spy(Endpoints.of(config));
+        task.setEndpoint(endpoint);
+
+        OutputStream os = Files.newOutputStream(tempFile.toPath());
+        os.write("file1 line1\n".getBytes());
+        os.write("file1 line2 partial".getBytes());
+        os.flush();
+
+        // read file1
+        List<SourceRecord> records = task.poll();
+        assertNotNull(records);
+        assertEquals(records.size(), 1);
+        assertEquals(records.get(0).value(), "file1 line1");
+        verifyOpenStreamCalls(endpoint, 1, 0);
+
+        // set up file2
+        OutputStream os2 = Files.newOutputStream(tempFile2.toPath());
+        os2.write("file2 line1\n".getBytes());
+        os2.write("file2 line2\n".getBytes());
+        os2.write("file2 line3 partial".getBytes());
+        os2.flush();
+
+        // file1 EOF, reties
+        for (int i = 0; i < 1 + MAX_READ_RETRIES; i++) {
+            records = task.poll();
+            assertNull(records);
+            verifyOpenStreamCalls(endpoint, 0, 0);
         }
+
+        // file1 close, file2 read
+        expectOffsetLookupReturnNone();
+        records = task.poll();
+        assertNotNull(records);
+        assertEquals(records.size(), 2);
+        assertEquals(records.get(0).value(), "file2 line1");
+        assertEquals(records.get(1).value(), "file2 line2");
+        verifyOpenStreamCalls(endpoint, 0, 1);
+
+        // file2 EOF
+        records = task.poll();
+        assertNull(records);
+        verifyOpenStreamCalls(endpoint, 0, 0);
+
+        // file2 retries
+        for (int i = 0; i < MAX_READ_RETRIES; i++) {
+            records = task.poll();
+            assertNull(records);
+            verifyOpenStreamCalls(endpoint, 0, 0);
+        }
+
+        // file2 close, file1 read EOF
+        expectOffsetLookupReturnOffset("file1 line1\n".length());
+        records = task.poll();
+        assertNull(records);
+        verifyOpenStreamCalls(endpoint, 1, 0);
+
+        // file1 retry read appended result
+        os.write(" complete\n".getBytes());
+        os.flush();
+        records = task.poll();
+        assertNotNull(records);
+        assertEquals(records.size(), 1);
+        assertEquals(records.get(0).value(), "file1 line2 partial complete");
+        verifyOpenStreamCalls(endpoint, 0, 0);
+
+        os.close();
+        task.stop();
+    }
+
+    @Test
+    public void testRestart() throws IOException, InterruptedException {
+        expectOffsetLookupReturnNone();
+        task.start(config);
+        Endpoint endpoint = spy(Endpoints.of(config));
+        task.setEndpoint(endpoint);
+
+        OutputStream os = Files.newOutputStream(tempFile.toPath());
+        os.write("file1 line1\n".getBytes());
+        os.write("file1 line2 partial".getBytes());
+        os.flush();
+
+        List<SourceRecord> records = task.poll();
+        assertNotNull(records);
+        assertEquals(records.size(), 1);
+        assertEquals(records.get(0).value(), "file1 line1");
+        verifyOpenStreamCalls(endpoint, 1, 0);
+
+        // stop
+        task.stop();
+
+        // file append
+        os.write(" complete\n".getBytes());
+        os.flush();
+
+        // restart
+        expectOffsetLookupReturnOffset("file1 line1\n".length());
+        task.start(config);
+        task.setEndpoint(endpoint);
+
+        records = task.poll();
+        assertNotNull(records);
+        assertEquals(records.size(), 1);
+        assertEquals(records.get(0).value(), "file1 line2 partial complete");
+        verifyOpenStreamCalls(endpoint, 1, 0);
+
+        // stop, reconfigure to other files, start
+        task.stop();
+        config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename,bogusfilename2");
+        task.start(config);
+        task.setEndpoint(endpoint);
+        records = task.poll();
+        verify(endpoint, times(1)).openInputStream("bogusfilename");
+        verify(endpoint, times(1)).openInputStream("bogusfilename2");
+        verifyOpenStreamCalls(endpoint, 0, 0);
+    }
+
+    @Test
+    public void testInvalidFile() throws InterruptedException, IOException {
+        // should continue processing, but log error
+        config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename,bogusfilename2");
+        task.start(config);
+
+        Endpoint endpoint = spy(Endpoints.of(config));
+        task.setEndpoint(endpoint);
+
+        for (int i = 1; i <= MAX_READ_RETRIES + 1; i++) {
+            var res = task.poll();
+            assertNull(res);
+            verify(endpoint, times(1)).openInputStream("bogusfilename");
+            verify(endpoint, times(1)).openInputStream("bogusfilename2");
+            clearInvocations(endpoint);
+        }
+    }
+
+    private void verifyOpenStreamCalls(Endpoint endpoint, int file1Calls, int file2Calls) throws IOException {
+        verify(endpoint, times(file1Calls)).openInputStream(tempFile.getAbsolutePath());
+        verify(endpoint, times(file2Calls)).openInputStream(tempFile2.getAbsolutePath());
+        clearInvocations(endpoint);
     }
 
     private void expectOffsetLookupReturnNone() {
         when(context.offsetStorageReader()).thenReturn(offsetStorageReader);
         when(offsetStorageReader.offset(anyMap())).thenReturn(null);
+    }
+
+    private void expectOffsetLookupReturnOffset(long offset) {
+        when(context.offsetStorageReader()).thenReturn(offsetStorageReader);
+        when(offsetStorageReader.offset(anyMap())).thenReturn(Collections.singletonMap(StreamSourceTask.POSITION_FIELD, offset));
     }
 
     private void verifyAll() {

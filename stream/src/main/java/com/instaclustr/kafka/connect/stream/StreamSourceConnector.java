@@ -18,14 +18,20 @@ public class StreamSourceConnector extends SourceConnector {
     public static final String TOPIC_CONFIG = "topic";
     public static final String FILES_CONFIG = "files";
     public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
+    public static final String READ_RETRIES = "read.retries";
+    public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
 
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
+    public static final int DEFAULT_READ_RETRIES = 10;
+    public static final long DEFAULT_POLL_THROTTLE_MS = 2000;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(FILES_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Source filenames.")
             .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
             .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
-                    "The maximum number of records the source task can read from the file each time it is polled");
+                    "The maximum number of records the source task can read from the file each time it is polled")
+            .define(READ_RETRIES, ConfigDef.Type.INT, DEFAULT_READ_RETRIES, ConfigDef.Importance.LOW, "The maximum number of retries on reading a stream")
+            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling");
 
     private Map<String, String> props;
 

@@ -3,11 +3,14 @@ package com.instaclustr.kafka.connect.stream.codec;
 import com.instaclustr.kafka.connect.stream.StreamSourceTask;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Reader;
+import java.nio.CharBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,6 +19,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.*;
 
 public class CharDecoderTest {
@@ -174,6 +180,137 @@ public class CharDecoderTest {
         assertEquals(records.get(0).getStreamOffset(), 2 + 4 * 2);
         assertEquals(records.get(1).getRecord(), "bar");
         assertEquals(records.get(1).getStreamOffset(), 2 + 4 * 2 + 4 * 2);
+    }
+
+    @Test
+    public void testAlwaysReadyReader() throws IOException {
+        // This is the case for AWS S3 inputstream over HTTP connection
+        // EOF is detected by read() returning -1
+
+        Reader reader = mock(Reader.class);
+        when(reader.ready()).thenReturn(true);
+        when(reader.read(any(), anyInt(), anyInt())).thenReturn(-1);
+
+        char[] buffer = new char[2];
+        CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
+        List<CharRecord> result = decoder.next(1);
+        assertNull(result); // EOF
+
+        when(reader.read(any(), anyInt(), anyInt()))
+                .thenReturn(1)
+                .thenReturn(-1);
+        buffer[0] = 'a';
+        result = decoder.next(1);
+        assertTrue(result.isEmpty()); // Not enough input
+
+        result = decoder.next(1);
+        assertNull(result); // EOF
+    }
+
+    @Test
+    public void testNotReadyReader() throws IOException {
+        // This is the case for local file
+        Reader reader = mock(Reader.class);
+        when(reader.ready()).thenReturn(false);
+
+        char[] buffer = new char[2];
+        CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
+        List<CharRecord> result = decoder.next(1);
+        assertNull(result); // EOF
+
+        when(reader.ready())
+                .thenReturn(true)
+                .thenReturn(false);
+        when(reader.read(any(), anyInt(), anyInt()))
+                .thenReturn(1)
+                .thenReturn(-1);
+        buffer[0] = 'a';
+        result = decoder.next(1);
+        assertTrue(result.isEmpty()); // Not enough input
+
+        result = decoder.next(1);
+        assertNull(result); // EOF
+    }
+
+    @Test
+    public void testNotEnoughStream() throws IOException {
+        Reader reader = mock(Reader.class);
+        when(reader.ready()).thenReturn(true);
+        when(reader.read(any(), anyInt(), anyInt())).thenReturn(0);
+
+        char[] buffer = new char[2];
+        CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
+        List<CharRecord> result = decoder.next(1);
+        assertNull(result); // EOF
+
+        when(reader.read(any(), anyInt(), anyInt()))
+                .thenReturn(1)
+                .thenReturn(0);
+        buffer[0] = 'a';
+        result = decoder.next(1);
+        assertTrue(result.isEmpty()); // Not enough input
+
+        result = decoder.next(1);
+        assertNull(result); // EOF
+    }
+
+    @Test
+    public void testAppend() throws IOException {
+        Reader reader = mock(Reader.class);
+        when(reader.ready()).thenReturn(true);
+
+        char[] buffer = new char[2];
+        CharDecoder decoder = new CharDecoder(null, 0, reader, StandardCharsets.UTF_8, buffer, 0);
+        when(reader.read(any(), anyInt(), anyInt()))
+                .thenReturn(1)
+                .thenReturn(-1);
+        buffer[0] = 'a';
+        List<CharRecord> result = decoder.next(2);
+        assertTrue(result.isEmpty()); // Not enough input
+        assertEquals(decoder.getStreamOffset(), 0);
+
+        // Append
+        when(reader.read(any(), anyInt(), anyInt()))
+                .thenReturn(1)
+                .thenReturn(-1);
+        buffer[1] = '\n';
+        result = decoder.next(2);
+        assertNotNull(result); // EOF
+        assertEquals(result.get(0).getRecord(), "a");
+
+        // Not append
+        when(reader.read(any(), anyInt(), anyInt())).thenReturn(-1);
+        result = decoder.next(2);
+        assertNull(result);
+    }
+
+    @Test
+    public void testCharsetBytes() throws CodecError {
+        Charset charset = StandardCharsets.UTF_8;
+        char[] cb = new char[] { 'a', 'b', 'c' };
+        int result = CharDecoder.numBytesOf(charset, cb, 1, 2);
+        assertEquals(result, 2);
+
+        charset = StandardCharsets.UTF_16;
+        result = CharDecoder.numBytesOf(charset, cb, 1, 2);
+        assertEquals(result, 2 * 2);
+    }
+
+    @Test
+    public void testMoreCharacters() throws CodecError {
+        Charset charset = StandardCharsets.UTF_8;
+        char[] cb = new char[] { 0x79, 0x799, Character.MIN_SURROGATE, Character.MIN_SURROGATE - 1 };
+        assertEquals(CharDecoder.numBytesOf(charset, cb, 0, 1), 1);
+        assertEquals(CharDecoder.numBytesOf(charset, cb, 1, 1), 2);
+        assertEquals(CharDecoder.numBytesOf(charset, cb, 2, 1), 4);
+        assertEquals(CharDecoder.numBytesOf(charset, cb, 3, 1), 3);
+
+        charset = StandardCharsets.UTF_16;
+        int byteOrderMarkBytes = 2;
+        for (int i = 0; i < cb.length; i++) {
+            assertEquals(CharDecoder.numBytesOf(charset, cb, i, 1),
+                    charset.encode(CharBuffer.wrap(cb, i, 1)).limit() - byteOrderMarkBytes);
+        }
     }
 
     private void writeAndAssertBufferSize(int batchSize, OutputStream os, byte[] bytes, int expectBufferSize)
