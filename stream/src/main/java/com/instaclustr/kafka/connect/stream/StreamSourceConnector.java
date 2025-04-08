@@ -9,24 +9,28 @@ import org.apache.kafka.connect.source.SourceConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class StreamSourceConnector extends SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(StreamSourceConnector.class);
     public static final String TOPIC_CONFIG = "topic";
     public static final String FILES_CONFIG = "files";
+    public static final String DIRECTORY_CONFIG = "directory";
     public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
     public static final String READ_RETRIES = "read.retries";
     public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
 
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
     public static final int DEFAULT_READ_RETRIES = 10;
-    public static final long DEFAULT_POLL_THROTTLE_MS = 2000;
+    public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(FILES_CONFIG, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Source filenames.")
+            .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
+            .define(DIRECTORY_CONFIG, ConfigDef.Type.STRING, null, ConfigDef.Importance.HIGH, "Source directory.")
             .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
             .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
                     "The maximum number of records the source task can read from the file each time it is polled")
@@ -34,13 +38,31 @@ public class StreamSourceConnector extends SourceConnector {
             .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling");
 
     private Map<String, String> props;
+    private List<String> files;
 
     @Override
     public void start(final Map<String, String> props) {
         this.props = props;
         AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);
-        List<String> filenames = config.getList(FILES_CONFIG);
-        log.info("Start S3 source connector reading from {} for topic {}", filenames, config.getString(TOPIC_CONFIG));
+        mustDefineDirectoryXorFiles(config);
+        if ((files = config.getList(FILES_CONFIG)) == null) {
+            Endpoint endpoint = Endpoints.of(props);
+            try {
+                files = endpoint.listRegularFiles(config.getString(DIRECTORY_CONFIG)).collect(Collectors.toList());
+            } catch (IOException e) {
+                throw new ConnectException(e);
+            }
+        }
+        if (files.isEmpty()) {
+            throw new ConnectException("Unable to find files to read, files: " + config.getString(FILES_CONFIG) + ", directory: " + config.getString(DIRECTORY_CONFIG));
+        }
+        log.info("Start S3 source connector reading from {} for topic {}", files, config.getString(TOPIC_CONFIG));
+    }
+
+    private void mustDefineDirectoryXorFiles(AbstractConfig config) {
+        if (! (config.getString(DIRECTORY_CONFIG) == null ^ config.getList(FILES_CONFIG) == null)) {
+            throw new ConnectException("Files or directory should be configured exclusively");
+        }
     }
 
     @Override
@@ -51,6 +73,7 @@ public class StreamSourceConnector extends SourceConnector {
     @Override
     public List<Map<String, String>> taskConfigs(final int maxTasks) {
         List<Map<String, String>> configs = new ArrayList<>();
+        props.put(FILES_CONFIG, String.join(",", files));
         configs.add(props);
         return configs;
     }

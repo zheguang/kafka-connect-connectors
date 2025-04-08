@@ -18,7 +18,8 @@ import java.util.Map;
 
 public class S3BucketAws extends S3Bucket implements AccessKeyBased {
 
-    private S3BucketAws(TransferManager transferManager, String bucketName) {
+    // Visible for testing
+    S3BucketAws(TransferManager transferManager, String bucketName) {
         super(transferManager, bucketName);
     }
 

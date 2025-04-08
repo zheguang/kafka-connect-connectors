@@ -45,9 +45,13 @@ public class StreamSourceTask extends SourceTask {
 
         endpoint = Endpoints.of(props);
         filenames = new LinkedList<>(connectorConfig.getList(StreamSourceConnector.FILES_CONFIG));
+        if (filenames.isEmpty()) {
+            throw new ConnectException("Unable to find files to read: " + props.get(StreamSourceConnector.FILES_CONFIG));
+        }
         topic = connectorConfig.getString(StreamSourceConnector.TOPIC_CONFIG);
         batchSize = connectorConfig.getInt(StreamSourceConnector.TASK_BATCH_SIZE_CONFIG);
 
+        // Initialize task state
         // Set decoder to null so poll() opens a fresh stream
         decoder = null;
         numTries = 0;
@@ -138,8 +142,8 @@ public class StreamSourceTask extends SourceTask {
                 InputStream inputStream = endpoint.openInputStream(filename);
                 result = CharDecoder.of(inputStream, props);
 
-                Map<String, Object> offset = context.offsetStorageReader().offset(Collections.singletonMap(FILENAME_FIELD, filenames));
-                log.debug("Read offset: {}, thread ID: {}", offset, Thread.currentThread().getId());
+                Map<String, Object> offset = context.offsetStorageReader().offset(Collections.singletonMap(FILENAME_FIELD, filename));
+                log.debug("Read offset: {}, thread: {}", offset, Thread.currentThread().getName());
                 if (offset != null) {
                     Object lastRecordedOffset = offset.get(POSITION_FIELD);
                     if (lastRecordedOffset != null && !(lastRecordedOffset instanceof Long))
@@ -211,8 +215,12 @@ public class StreamSourceTask extends SourceTask {
         return Collections.singletonMap(POSITION_FIELD, pos);
     }
 
-    // Visible for testing
+    /* Visible for testing */
     void setEndpoint(final Endpoint endpoint) {
         this.endpoint = endpoint;
+    }
+
+    public Set<String> getFilenames() {
+        return Set.copyOf(filenames);
     }
 }

@@ -2,8 +2,7 @@ package com.instaclustr.kafka.connect.stream.endpoint;
 
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.instaclustr.kafka.connect.stream.Endpoint;
 import com.instaclustr.kafka.connect.stream.ExtentInputStream;
@@ -11,8 +10,14 @@ import org.apache.kafka.common.config.ConfigDef;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+import static com.instaclustr.kafka.connect.stream.Util.doWhile;
 import static org.apache.kafka.common.config.ConfigDef.Importance.HIGH;
 import static org.apache.kafka.common.config.ConfigDef.Type.STRING;
 
@@ -58,7 +63,27 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
         }
     }
 
-    private AmazonS3 getClient() {
+    @Override
+    public Stream<String> listRegularFiles(String path) throws IOException {
+        try {
+            ListObjectsRequest request = new ListObjectsRequest()
+                    .withBucketName(bucketName)
+                    .withPrefix(path)
+                    .withDelimiter(null); // null delimiter for recursive nested listing
+            ObjectListing seed = getClient().listObjects(request);
+            Stream<ObjectListing> ls = doWhile(seed, ObjectListing::isTruncated, l -> getClient().listNextBatchOfObjects(l));
+            return ls.flatMap(l -> l.getObjectSummaries().stream().map(S3ObjectSummary::getKey)).filter(S3Bucket::isRegularFile);
+        } catch (SdkClientException e) {
+            throw new IOException(e);
+        }
+    }
+
+    AmazonS3 getClient() {
         return transferManager.getAmazonS3Client();
     }
+
+    static boolean isRegularFile(String path) {
+        return !path.endsWith("/");
+    }
+
 }
