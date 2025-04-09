@@ -54,7 +54,6 @@ public class CharDecoder implements Closeable {
         return of(stream, charset, INIT_BUFFER_SIZE);
     }
 
-    // For testing
     static CharDecoder of(InputStream stream, Charset charset, int initBufferSize) throws CodecError {
         if (!SUPPORTED_CHARSETS.contains(charset)) {
             throw new CodecError("Unsupported: " + charset.name());

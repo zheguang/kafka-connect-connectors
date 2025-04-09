@@ -11,11 +11,7 @@ import org.apache.kafka.common.config.ConfigDef;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static com.instaclustr.kafka.connect.stream.Util.doWhile;
 import static org.apache.kafka.common.config.ConfigDef.Importance.HIGH;
@@ -42,9 +38,7 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
     @Override
     public InputStream openInputStream(String objectKey) throws IOException {
         try {
-            ObjectMetadata metadata = getClient().getObjectMetadata(bucketName, objectKey);
-            long objectSize = metadata.getContentLength();
-            return ExtentInputStream.of(objectKey, objectSize, this);
+            return ExtentInputStream.of(objectKey, getFileSize(objectKey), this);
         } catch (SdkClientException e) {
             throw new IOException (e);
         }
@@ -75,6 +69,16 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
             return ls.flatMap(l -> l.getObjectSummaries().stream().map(S3ObjectSummary::getKey)).filter(S3Bucket::isRegularFile);
         } catch (SdkClientException e) {
             throw new IOException(e);
+        }
+    }
+
+    @Override
+    public long getFileSize(String path) throws IOException {
+        try {
+            ObjectMetadata metadata = getClient().getObjectMetadata(bucketName, path);
+            return metadata.getContentLength();
+        } catch (SdkClientException e) {
+            throw new IOException (e);
         }
     }
 
