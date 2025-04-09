@@ -111,6 +111,36 @@ public class CharDecoderTest {
         assertEquals(record.getRecord(), expectedRecord);
         assertEquals(record.getStreamOffset(), line.getBytes(charset).length);
     }
+    
+    @Test
+    public void testSeekUtf16() throws IOException {
+        Charset charset = StandardCharsets.UTF_16;
+        decoder = CharDecoder.of(Files.newInputStream(tempFile.toPath()), charset);
+
+        String content = "first line\nsecond line\n";
+        try (OutputStream os = Files.newOutputStream(tempFile.toPath())) {
+            os.write(content.getBytes(charset));
+            os.flush();
+        }
+
+        List<CharRecord> records = decoder.next(1);
+        assertNotNull(records);
+        assertEquals(records.size(), 1);
+
+        CharRecord record = records.get(0);
+        assertEquals(record.getRecord(), "first line");
+        assertEquals(record.getStreamOffset(), 2 + "first line\n".length() * 2);
+        
+        try (CharDecoder decoder2 = CharDecoder.of(Files.newInputStream(tempFile.toPath()), charset)) {
+			decoder2.skipFirstBytes(record.getStreamOffset());
+			records = decoder2.next(1);
+			assertNotNull(records);
+			assertEquals(records.size(), 1);
+			record = records.get(0);
+			assertEquals(record.getRecord(), "second line");
+			assertEquals(record.getStreamOffset(), 2 + content.length() * 2);
+        }
+    }
 
     @Test
     public void testBatchSize() throws IOException {

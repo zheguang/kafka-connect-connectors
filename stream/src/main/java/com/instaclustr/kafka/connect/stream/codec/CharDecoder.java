@@ -71,7 +71,7 @@ public class CharDecoder implements Closeable {
             long skipped = stream.skip(skipLeft);
             skipLeft -= skipped;
         }
-        streamOffset = byteMarkLengthOf(charset) + numBytes;
+        streamOffset = numBytes;
     }
 
     @Override
