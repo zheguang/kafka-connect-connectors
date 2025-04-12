@@ -10,9 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 public class StreamSourceConnector extends SourceConnector {
@@ -27,6 +30,7 @@ public class StreamSourceConnector extends SourceConnector {
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
     public static final int DEFAULT_READ_RETRIES = 10;
     public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
+    public static final long DEFAULT_DIRECTORY_WATCH_DELAY_MINUTES = 60;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
@@ -39,6 +43,7 @@ public class StreamSourceConnector extends SourceConnector {
 
     private Map<String, String> props;
     private List<String> files;
+    private Watcher directoryWatcher = null;
 
     @Override
     public void start(final Map<String, String> props) {
@@ -47,11 +52,20 @@ public class StreamSourceConnector extends SourceConnector {
         mustDefineDirectoryXorFiles(config);
         if ((files = config.getList(FILES_CONFIG)) == null) {
             Endpoint endpoint = Endpoints.of(props);
+            String directory = config.getString(DIRECTORY_CONFIG);
             try {
-                files = endpoint.listRegularFiles(config.getString(DIRECTORY_CONFIG)).collect(Collectors.toList());
+                files = endpoint.listRegularFiles(directory).collect(Collectors.toList());
             } catch (IOException e) {
                 throw new ConnectException(e);
             }
+            directoryWatcher = Watcher.of(Duration.ofMinutes(DEFAULT_DIRECTORY_WATCH_DELAY_MINUTES));
+            directoryWatcher.watch(() -> {
+                var knownFiles = Set.copyOf(files);
+                return ! endpoint.listRegularFiles(directory).allMatch(knownFiles::contains);
+            }, () -> {
+                log.info("Files under the directory has changed, request to reconfigure tasks");
+                context.requestTaskReconfiguration();
+            });
         }
         if (files.isEmpty()) {
             throw new ConnectException("Unable to find files to read, files: " + config.getString(FILES_CONFIG) + ", directory: " + config.getString(DIRECTORY_CONFIG));
@@ -81,6 +95,15 @@ public class StreamSourceConnector extends SourceConnector {
     @Override
     public void stop() {
         log.info("Stop");
+        if (directoryWatcher != null) {
+            try {
+                directoryWatcher.close();
+            } catch (IOException e) {
+                throw new ConnectException("Error while closing directory watcher threads", e);
+            } finally {
+                directoryWatcher = null;
+            }
+        }
     }
 
     @Override
