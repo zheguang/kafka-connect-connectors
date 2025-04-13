@@ -6,6 +6,7 @@ import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.ExactlyOnceSupport;
 import org.apache.kafka.connect.source.SourceConnector;
+import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 public class StreamSourceConnector extends SourceConnector {
@@ -26,11 +26,12 @@ public class StreamSourceConnector extends SourceConnector {
     public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
     public static final String READ_RETRIES = "read.retries";
     public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
+    public static final String DIRECTORY_FILE_DISCOVERY_MINUTES = "directory.file.discovery.minutes";
 
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
     public static final int DEFAULT_READ_RETRIES = 10;
     public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
-    public static final long DEFAULT_DIRECTORY_WATCH_DELAY_MINUTES = 60;
+    public static final long DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES = 60;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
@@ -39,7 +40,8 @@ public class StreamSourceConnector extends SourceConnector {
             .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
                     "The maximum number of records the source task can read from the file each time it is polled")
             .define(READ_RETRIES, ConfigDef.Type.INT, DEFAULT_READ_RETRIES, ConfigDef.Importance.LOW, "The maximum number of retries on reading a stream")
-            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling");
+            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling")
+            .define(DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Type.LONG, DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Importance.LOW, "The time to discover new directory files");
 
     private Map<String, String> props;
     private List<String> files;
@@ -58,19 +60,20 @@ public class StreamSourceConnector extends SourceConnector {
             } catch (IOException e) {
                 throw new ConnectException(e);
             }
-            directoryWatcher = Watcher.of(Duration.ofMinutes(DEFAULT_DIRECTORY_WATCH_DELAY_MINUTES));
+            directoryWatcher = Watcher.of(getDirectoryFileDiscoveryDuration());
             directoryWatcher.watch(() -> {
                 var knownFiles = Set.copyOf(files);
                 return ! endpoint.listRegularFiles(directory).allMatch(knownFiles::contains);
             }, () -> {
                 log.info("Files under the directory has changed, request to reconfigure tasks");
-                context.requestTaskReconfiguration();
+                getContext().requestTaskReconfiguration();
             });
         }
         if (files.isEmpty()) {
             throw new ConnectException("Unable to find files to read, files: " + config.getString(FILES_CONFIG) + ", directory: " + config.getString(DIRECTORY_CONFIG));
         }
-        log.info("Start S3 source connector reading from {} for topic {}", files, config.getString(TOPIC_CONFIG));
+        log.info("Start stream source connector reading from {} for topic {}", files, config.getString(TOPIC_CONFIG));
+
     }
 
     private void mustDefineDirectoryXorFiles(AbstractConfig config) {
@@ -155,5 +158,18 @@ public class StreamSourceConnector extends SourceConnector {
         }
 
         return true;
+    }
+    
+    // Visible for testing
+    List<String> getFiles() {
+        return files;
+    }
+    
+    Duration getDirectoryFileDiscoveryDuration() {
+        return Duration.ofMinutes(Long.valueOf(props.get(DIRECTORY_FILE_DISCOVERY_MINUTES)));
+    }
+    
+    SourceConnectorContext getContext() {
+        return context();
     }
 }

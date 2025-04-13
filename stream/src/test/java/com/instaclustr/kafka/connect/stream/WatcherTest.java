@@ -1,10 +1,8 @@
 package com.instaclustr.kafka.connect.stream;
 
 import java.time.Duration;
-import java.util.Random;
 import java.util.concurrent.Callable;
 
-import org.apache.http.util.Asserts;
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
