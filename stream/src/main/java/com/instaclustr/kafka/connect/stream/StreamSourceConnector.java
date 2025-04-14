@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class StreamSourceConnector extends SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(StreamSourceConnector.class);
@@ -45,7 +44,7 @@ public class StreamSourceConnector extends SourceConnector {
             .define(DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Type.LONG, DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Importance.LOW, "The time to discover new directory files");
 
     private AbstractConfig config;
-    private List<String> files;
+    private volatile List<String> files;
     private Watcher directoryWatcher = null;
 
     @Override
@@ -56,14 +55,19 @@ public class StreamSourceConnector extends SourceConnector {
             Endpoint endpoint = Endpoints.of(props);
             String directory = config.getString(DIRECTORY_CONFIG);
             try {
-                files = endpoint.listRegularFiles(directory).collect(Collectors.toList());
+                files = endpoint.listRegularFiles(directory).toList();
             } catch (IOException e) {
                 throw new ConnectException(e);
             }
+            var knownFiles = Set.copyOf(files);
             directoryWatcher = Watcher.of(getDirectoryFileDiscoveryDuration());
             directoryWatcher.watch(() -> {
-                var knownFiles = Set.copyOf(files);
-                return ! endpoint.listRegularFiles(directory).allMatch(knownFiles::contains);
+                var currentFiles = endpoint.listRegularFiles(directory).toList();
+                if (! knownFiles.containsAll(currentFiles)) {
+                    files = currentFiles;
+                    return true;
+                }
+                return false;
             }, () -> {
                 log.info("Files under the directory has changed, request to reconfigure tasks");
                 getContext().requestTaskReconfiguration();
