@@ -95,6 +95,7 @@ public class StreamSourceConnectorTest {
         files.add(File.createTempFile("file3", null, dir).getAbsolutePath());
         sleep(1000);;
         verify(context, times(1)).requestTaskReconfiguration();
+        assertEquals(Set.copyOf(connector.getFiles()), files);
     }
     
     @Test
