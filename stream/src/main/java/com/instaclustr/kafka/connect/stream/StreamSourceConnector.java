@@ -27,6 +27,7 @@ public class StreamSourceConnector extends SourceConnector {
     public static final String READ_RETRIES = "read.retries";
     public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
     public static final String DIRECTORY_FILE_DISCOVERY_MINUTES = "directory.file.discovery.minutes";
+    public static final String TASK_FILES = "task.files";
 
     public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
     public static final int DEFAULT_READ_RETRIES = 10;
@@ -43,14 +44,13 @@ public class StreamSourceConnector extends SourceConnector {
             .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling")
             .define(DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Type.LONG, DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Importance.LOW, "The time to discover new directory files");
 
-    private Map<String, String> props;
+    private AbstractConfig config;
     private List<String> files;
     private Watcher directoryWatcher = null;
 
     @Override
     public void start(final Map<String, String> props) {
-        this.props = props;
-        AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);
+        config = new AbstractConfig(CONFIG_DEF, props);
         mustDefineDirectoryXorFiles(config);
         if ((files = config.getList(FILES_CONFIG)) == null) {
             Endpoint endpoint = Endpoints.of(props);
@@ -89,10 +89,11 @@ public class StreamSourceConnector extends SourceConnector {
 
     @Override
     public List<Map<String, String>> taskConfigs(final int maxTasks) {
-        List<Map<String, String>> configs = new ArrayList<>();
-        props.put(FILES_CONFIG, String.join(",", files));
-        configs.add(props);
-        return configs;
+        List<Map<String, String>> result = new ArrayList<>();
+        Map<String, String> copy = config.originalsStrings();
+        copy.put(FILES_CONFIG, String.join(",", files));
+        result.add(copy);
+        return result;
     }
 
     @Override
@@ -126,7 +127,7 @@ public class StreamSourceConnector extends SourceConnector {
 
     @Override
     public boolean alterOffsets(Map<String, String> connectorConfig, Map<Map<String, ?>, Map<String, ?>> offsets) {
-        AbstractConfig config = new AbstractConfig(CONFIG_DEF, connectorConfig);
+        AbstractConfig validateOnly = new AbstractConfig(CONFIG_DEF, connectorConfig);
 
         for (Map.Entry<Map<String, ?>, Map<String, ?>> partitionOffset : offsets.entrySet()) {
             Map<String, ?> offset = partitionOffset.getValue();
@@ -166,7 +167,7 @@ public class StreamSourceConnector extends SourceConnector {
     }
     
     Duration getDirectoryFileDiscoveryDuration() {
-        return Duration.ofMinutes(Long.valueOf(props.get(DIRECTORY_FILE_DISCOVERY_MINUTES)));
+        return Duration.ofMinutes(config.getLong(DIRECTORY_FILE_DISCOVERY_MINUTES));
     }
     
     SourceConnectorContext getContext() {

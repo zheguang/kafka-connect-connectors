@@ -2,11 +2,16 @@ package com.instaclustr.kafka.connect.stream;
 
 import static java.lang.Thread.sleep;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,8 +25,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.google.common.io.Files;
-
 public class StreamSourceConnectorTest {
     private File dir;
     private Set<String> files;
@@ -30,7 +33,7 @@ public class StreamSourceConnectorTest {
     
     @BeforeMethod
     public void setup() throws IOException {
-        dir = Files.createTempDir();
+        dir = Files.createTempDirectory("connector-test-method").toFile();
         dir.deleteOnExit();
         files = new HashSet<>();
         files.addAll(List.of(
@@ -82,15 +85,32 @@ public class StreamSourceConnectorTest {
         config.put(StreamSourceConnector.DIRECTORY_CONFIG, dir.getAbsolutePath());
         connector = Mockito.spy(connector);
         doReturn(Duration.ofSeconds(1)).when(connector).getDirectoryFileDiscoveryDuration();
-        var context = Mockito.mock(SourceConnectorContext.class);
+        var context = mock(SourceConnectorContext.class);
         doReturn(context).when(connector).getContext();
         connector.start(config);
         assertEquals(Set.copyOf(connector.getFiles()), files);
         
         sleep(1500);
-        Mockito.verify(context, Mockito.times(0)).requestTaskReconfiguration();
+        verify(context, times(0)).requestTaskReconfiguration();
         files.add(File.createTempFile("file3", null, dir).getAbsolutePath());
         sleep(1000);;
-        Mockito.verify(context, Mockito.times(1)).requestTaskReconfiguration();
+        verify(context, times(1)).requestTaskReconfiguration();
+    }
+    
+    @Test
+    public void testTaskConfigs() {
+        config.put(StreamSourceConnector.DIRECTORY_CONFIG, dir.getAbsolutePath());
+        connector.start(config);
+
+        var tasks = connector.taskConfigs(1);
+        assertEquals(tasks.size(), 1);
+        
+        var actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceConnector.FILES_CONFIG).split(","));
+        assertEquals(Set.copyOf(actualFiles), files);
+        
+        tasks = connector.taskConfigs(123);
+        assertEquals(tasks.size(), 1);
+        actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceConnector.FILES_CONFIG).split(","));
+        assertEquals(Set.copyOf(actualFiles), files);
     }
 }
