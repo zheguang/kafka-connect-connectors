@@ -41,7 +41,7 @@ public class StreamSourceConnectorTest {
                 File.createTempFile("connector-test-file2", null, dir).getAbsolutePath()));
 
         config = new HashMap<>();
-        config.put(StreamSourceConnector.TOPIC_CONFIG, "dummyTopic");
+        config.put(StreamSourceTask.TOPIC_CONFIG, "dummyTopic");
         config.put(Endpoints.ENDPOINT_TYPE, Endpoints.LOCAL_FILE);
         
         connector = new StreamSourceConnector();
@@ -106,12 +106,12 @@ public class StreamSourceConnectorTest {
         var tasks = connector.taskConfigs(1);
         assertEquals(tasks.size(), 1);
         
-        var actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceConnector.FILES_CONFIG).split(","));
+        var actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceTask.TASK_FILES).split(","));
         assertEquals(Set.copyOf(actualFiles), files);
         
         tasks = connector.taskConfigs(123);
         assertEquals(tasks.size(), 1);
-        actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceConnector.FILES_CONFIG).split(","));
+        actualFiles = Arrays.asList(tasks.get(0).get(StreamSourceTask.TASK_FILES).split(","));
         assertEquals(Set.copyOf(actualFiles), files);
     }
 }

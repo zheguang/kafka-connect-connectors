@@ -19,31 +19,21 @@ import java.util.Set;
 
 public class StreamSourceConnector extends SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(StreamSourceConnector.class);
-    public static final String TOPIC_CONFIG = "topic";
-    public static final String FILES_CONFIG = "files";
-    public static final String DIRECTORY_CONFIG = "directory";
-    public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
-    public static final String READ_RETRIES = "read.retries";
-    public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
-    public static final String DIRECTORY_FILE_DISCOVERY_MINUTES = "directory.file.discovery.minutes";
-    public static final String TASK_FILES = "task.files";
 
-    public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
-    public static final int DEFAULT_READ_RETRIES = 10;
-    public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
+    public static final String DIRECTORY_CONFIG = "directory";
+    public static final String DIRECTORY_FILE_DISCOVERY_MINUTES = "directory.file.discovery.minutes";
+    public static final String FILES_CONFIG = "files";
+
     public static final long DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES = 60;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
             .define(DIRECTORY_CONFIG, ConfigDef.Type.STRING, null, ConfigDef.Importance.HIGH, "Source directory.")
-            .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
-            .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
-                    "The maximum number of records the source task can read from the file each time it is polled")
-            .define(READ_RETRIES, ConfigDef.Type.INT, DEFAULT_READ_RETRIES, ConfigDef.Importance.LOW, "The maximum number of retries on reading a stream")
-            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling")
             .define(DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Type.LONG, DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Importance.LOW, "The time to discover new directory files");
 
     private AbstractConfig config;
+    
+    // Mutable state
     private volatile List<String> files;
     private Watcher directoryWatcher = null;
 
@@ -76,7 +66,7 @@ public class StreamSourceConnector extends SourceConnector {
         if (files.isEmpty()) {
             throw new ConnectException("Unable to find files to read, files: " + config.getString(FILES_CONFIG) + ", directory: " + config.getString(DIRECTORY_CONFIG));
         }
-        log.info("Start stream source connector reading from {} for topic {}", files, config.getString(TOPIC_CONFIG));
+        log.info("Started stream source connector reading from {}", files);
 
     }
 
@@ -95,14 +85,14 @@ public class StreamSourceConnector extends SourceConnector {
     public List<Map<String, String>> taskConfigs(final int maxTasks) {
         List<Map<String, String>> result = new ArrayList<>();
         Map<String, String> copy = config.originalsStrings();
-        copy.put(FILES_CONFIG, String.join(",", files));
+        copy.put(StreamSourceTask.TASK_FILES, String.join(",", files));
         result.add(copy);
         return result;
     }
 
     @Override
     public void stop() {
-        log.info("Stop");
+        log.info("Stopping");
         if (directoryWatcher != null) {
             try {
                 directoryWatcher.close();

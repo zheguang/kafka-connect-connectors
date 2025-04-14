@@ -3,6 +3,7 @@ package com.instaclustr.kafka.connect.stream;
 import com.instaclustr.kafka.connect.stream.codec.CharRecord;
 import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -14,24 +15,44 @@ import java.io.*;
 import java.util.*;
 
 public class StreamSourceTask extends SourceTask {
-
     private static final Logger log = LoggerFactory.getLogger(StreamSourceTask.class);
+
+    public static final String TASK_FILES = "task.files";
+    public static final String TASK_BATCH_SIZE_CONFIG = "batch.size";
+    public static final String TOPIC_CONFIG = "topic";
+    public static final String POLL_THROTTLE_MS = "poll.throttle.ms";
+    public static final String READ_RETRIES = "read.retries";
+    
+    public static final int DEFAULT_TASK_BATCH_SIZE = 2000;
+    public static final int DEFAULT_READ_RETRIES = 10;
+    public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
+
+    public static ConfigDef CONFIG_DEF = new ConfigDef()
+            .define(TASK_FILES, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Files assigned to this task by the connector")
+            .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
+                    "The maximum number of records the source task can read from the file each time it is polled")
+            .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
+            .define(READ_RETRIES, ConfigDef.Type.INT, DEFAULT_READ_RETRIES, ConfigDef.Importance.LOW, "The maximum number of retries on reading a stream")
+            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling");
+    
     public static final String FILENAME_FIELD = "filename";
     public static final String POSITION_FIELD = "position";
     private static final Schema VALUE_SCHEMA = Schema.STRING_SCHEMA;
 
-    private Endpoint endpoint;
-    private Queue<String> filenames; // head of the queue is the current file
     private String topic;
     private int batchSize;
-    private Map<String, String> props;
-
-    private CharDecoder decoder = null;
-    private int numTries = 0;
     private int maxReadRetries;
     private long pollThrottleMs;
+    private Map<String, String> props;
 
-    // For Plugins to load this class
+    private Endpoint endpoint;
+    
+    // Mutable state
+    private Queue<String> filenames; // head of the queue is the current file
+    private CharDecoder decoder = null;
+    private int numTries = 0;
+
+    // For Connect runtime to load this class
     public StreamSourceTask() {
     }
 
@@ -42,27 +63,27 @@ public class StreamSourceTask extends SourceTask {
 
     @Override
     public void start(final Map<String, String> props) {
-        AbstractConfig connectorConfig = new AbstractConfig(StreamSourceConnector.CONFIG_DEF, props);
+        AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);
 
         endpoint = Endpoints.of(props);
-        filenames = new LinkedList<>(connectorConfig.getList(StreamSourceConnector.FILES_CONFIG));
+        topic = config.getString(TOPIC_CONFIG);
+        batchSize = config.getInt(TASK_BATCH_SIZE_CONFIG);
+        maxReadRetries = config.getInt(READ_RETRIES);
+        pollThrottleMs = config.getLong(POLL_THROTTLE_MS);
+
+        // Initialize task mutable state
+        filenames = new LinkedList<>(config.getList(TASK_FILES));
         if (filenames.isEmpty()) {
             throw new ConnectException(
-                    "Unable to find files to read: " + props.get(StreamSourceConnector.FILES_CONFIG));
+                    "Unable to find files to read: " + props.get(TASK_FILES));
         }
-        topic = connectorConfig.getString(StreamSourceConnector.TOPIC_CONFIG);
-        batchSize = connectorConfig.getInt(StreamSourceConnector.TASK_BATCH_SIZE_CONFIG);
-
-        // Initialize task state
         // Set decoder to null so poll() opens a fresh stream
         decoder = null;
         numTries = 0;
-        maxReadRetries = connectorConfig.getInt(StreamSourceConnector.READ_RETRIES);
-        pollThrottleMs = connectorConfig.getLong(StreamSourceConnector.POLL_THROTTLE_MS);
 
         this.props = props;
 
-        log.debug("Starting task reading from {} for topic {}", filenames, topic);
+        log.info("Started task reading from {} for topic {}", filenames, topic);
     }
 
     /**
@@ -81,8 +102,7 @@ public class StreamSourceTask extends SourceTask {
         // - when EOF or not ready, pause on this file by closing its stream, process
         // next file
         // - keep looping forever over all files
-        // - what happens when error on one file? remove this file from list, and move
-        // on to the next file
+        // - what happens when error on one file? move this file to the end the queue and move on
         if (decoder == null) {
             decoder = maybeGetNextFileDecoder();
             if (decoder == null) {
@@ -207,7 +227,7 @@ public class StreamSourceTask extends SourceTask {
 
     @Override
     public void stop() {
-        log.debug("Stopping");
+        log.info("Stopping");
         synchronized (this) {
             maybeCloseDecoder();
             // Don't set decoder to null, because prior to Kafka 2.8, stop() and poll() can

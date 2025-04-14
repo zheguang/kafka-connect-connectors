@@ -40,12 +40,12 @@ public class StreamSourceTaskTest {
         tempFile2 = File.createTempFile("file2-stream-source-task-test", null);
         config = new HashMap<>();
         config.put(Endpoints.ENDPOINT_TYPE, Endpoints.LOCAL_FILE);
-        config.put(StreamSourceConnector.FILES_CONFIG, tempFile.getAbsolutePath() + "," + tempFile2.getAbsolutePath());
-        config.put(StreamSourceConnector.TOPIC_CONFIG, TOPIC);
-        config.put(StreamSourceConnector.TASK_BATCH_SIZE_CONFIG,
-                String.valueOf(StreamSourceConnector.DEFAULT_TASK_BATCH_SIZE));
-        config.put(StreamSourceConnector.READ_RETRIES, String.valueOf(MAX_READ_RETRIES));
-        config.put(StreamSourceConnector.POLL_THROTTLE_MS, String.valueOf(10));
+        config.put(StreamSourceTask.TASK_FILES, tempFile.getAbsolutePath() + "," + tempFile2.getAbsolutePath());
+        config.put(StreamSourceTask.TOPIC_CONFIG, TOPIC);
+        config.put(StreamSourceTask.TASK_BATCH_SIZE_CONFIG,
+                String.valueOf(StreamSourceTask.DEFAULT_TASK_BATCH_SIZE));
+        config.put(StreamSourceTask.READ_RETRIES, String.valueOf(MAX_READ_RETRIES));
+        config.put(StreamSourceTask.POLL_THROTTLE_MS, String.valueOf(10));
         config.put(CharDecoder.CHARACTER_SET, StandardCharsets.UTF_8.name());
         task = new StreamSourceTask();
         offsetStorageReader = mock(OffsetStorageReader.class);
@@ -235,7 +235,7 @@ public class StreamSourceTaskTest {
 
             // stop, reconfigure to other files, start
             task.stop();
-            config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename,bogusfilename2");
+            config.put(StreamSourceTask.TASK_FILES, "bogusfilename,bogusfilename2");
             expectOffsetLookupReturnNone();
             task.start(config);
             task.setEndpoint(endpoint);
@@ -278,7 +278,7 @@ public class StreamSourceTaskTest {
     public void testInvalidFile() throws InterruptedException, IOException {
         expectOffsetLookupReturnNone();
         // should continue processing, but log error
-        config.put(StreamSourceConnector.FILES_CONFIG, "bogusfilename,bogusfilename2");
+        config.put(StreamSourceTask.TASK_FILES, "bogusfilename,bogusfilename2");
         task.start(config);
 
         Endpoint endpoint = spy(Endpoints.of(config));
