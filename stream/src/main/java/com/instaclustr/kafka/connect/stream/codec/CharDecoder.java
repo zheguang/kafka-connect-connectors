@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class CharDecoder implements Closeable {
+public class CharDecoder implements Decoder<CharRecord> {
     public static final String CHARACTER_SET = "character.set";
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(CHARACTER_SET, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Character set");
@@ -78,14 +78,7 @@ public class CharDecoder implements Closeable {
         stream.close();
     }
 
-    /**
-     * Get next batch of decoded records.
-     * @param batchSize
-     * @return null if underlying stream has no bytes available to read yet; an empty list if underlying stream has
-     * some available bytes to read but not enough yet for decoding a single record; otherwise a nonempty list of size
-     * no more than the batchSize.
-     * @throws IOException
-     */
+    @Override
     public List<CharRecord> next(int batchSize) throws IOException {
         List<CharRecord> records = null;
         int nread = 0;

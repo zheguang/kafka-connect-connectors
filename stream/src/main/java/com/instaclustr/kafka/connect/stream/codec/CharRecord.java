@@ -1,6 +1,6 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
-public class CharRecord {
+public class CharRecord implements Record<String> {
     private final String record;
     private final long streamOffset;
 
@@ -9,10 +9,12 @@ public class CharRecord {
         this.streamOffset = streamOffset;
     }
 
+    @Override
     public String getRecord() {
         return record;
     }
 
+    @Override
     public long getStreamOffset() {
         return streamOffset;
     }
