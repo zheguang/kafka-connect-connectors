@@ -1,6 +1,6 @@
 package com.instaclustr.kafka.connect.stream;
 
-import com.instaclustr.kafka.connect.stream.codec.CharRecord;
+import com.instaclustr.kafka.connect.stream.codec.Record;
 import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -114,7 +114,7 @@ public class StreamSourceTask extends SourceTask {
 
         try {
             String filename = filenames.element();
-            List<CharRecord> charRecords = decoder.next(batchSize);
+            List<Record<String>> charRecords = decoder.next(batchSize);
             if (charRecords == null) {
                 numTries++;
                 log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);

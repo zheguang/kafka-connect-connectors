@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class CharDecoder implements Decoder<CharRecord> {
+public class CharDecoder implements Decoder<Record<String>> {
     public static final String CHARACTER_SET = "character.set";
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(CHARACTER_SET, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Character set");
@@ -79,8 +79,8 @@ public class CharDecoder implements Decoder<CharRecord> {
     }
 
     @Override
-    public List<CharRecord> next(int batchSize) throws IOException {
-        List<CharRecord> records = null;
+    public List<Record<String>> next(int batchSize) throws IOException {
+        List<Record<String>> records = null;
         int nread = 0;
         // Reader over S3's stream appears to ready() == true even when EOF
         // Local filesystem however is !ready() when EOF
@@ -107,7 +107,7 @@ public class CharDecoder implements Decoder<CharRecord> {
                 if (line != null) {
                     foundOneLine = true;
                     log.debug("Extracted a line from buffer");
-                    records.add(new CharRecord(line, streamOffset));
+                    records.add(new Record<>(line, streamOffset));
 
                     if (records.size() >= batchSize) {
                         log.debug("Return records in full batch: size=" + records.size());

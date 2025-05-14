@@ -1,9 +1,21 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
-public interface Record<T> {
+public class Record<T> {
 
-    T getRecord();
+    private final T record;
+    private final long streamOffset;
 
-    long getStreamOffset();
+    public Record(T record, long streamOffset) {
+        this.record = record;
+        this.streamOffset = streamOffset;
+    }
+
+    public T getRecord() {
+        return record;
+    }
+
+    public long getStreamOffset() {
+        return streamOffset;
+    }
 }
 

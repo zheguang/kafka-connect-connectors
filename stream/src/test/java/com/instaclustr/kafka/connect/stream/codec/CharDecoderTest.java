@@ -51,10 +51,10 @@ public class CharDecoderTest {
             os.flush();
         }
 
-        List<CharRecord> records = decoder.next(2);
+        List<Record<String>> records = decoder.next(2);
         assertEquals(records.size(), 2);
 
-        CharRecord record = records.get(0);
+        Record<String> record = records.get(0);
         assertEquals(record.getRecord(), "");
         assertEquals(record.getStreamOffset(), 1);
 
@@ -75,7 +75,7 @@ public class CharDecoderTest {
         }
 
         // First read has available input but not enough to decode a line
-        List<CharRecord> records = decoder.next(2);
+        List<Record<String>> records = decoder.next(2);
         assertNotNull(records);
         assertTrue(records.isEmpty());
 
@@ -101,10 +101,10 @@ public class CharDecoderTest {
         assertEquals(skipOneCharInBytes, expectedOneCharInBytes);
         decoder.skipFirstBytes(skipOneCharInBytes);
 
-        List<CharRecord> records = decoder.next(1);
+        List<Record<String>> records = decoder.next(1);
         assertEquals(records.size(), 1);
 
-        CharRecord record = records.get(0);
+        Record<String> record = records.get(0);
         String expectedRecord = "irst line";
         assertEquals(record.getRecord(), expectedRecord);
         assertEquals(record.getStreamOffset(), line.getBytes(charset).length);
@@ -121,11 +121,11 @@ public class CharDecoderTest {
             os.flush();
         }
 
-        List<CharRecord> records = decoder.next(1);
+        List<Record<String>> records = decoder.next(1);
         assertNotNull(records);
         assertEquals(records.size(), 1);
 
-        CharRecord record = records.get(0);
+        Record<String> record = records.get(0);
         assertEquals(record.getRecord(), "first line");
         assertEquals(record.getStreamOffset(), 2 + "first line\n".length() * 2);
         
@@ -152,7 +152,7 @@ public class CharDecoderTest {
             );
 
             assertEquals(decoder.bufferSize(), 2);
-            List<CharRecord> records = decoder.next(batchSize);
+            List<Record<String>> records = decoder.next(batchSize);
             assertEquals(records.size(), 5000);
             assertEquals(decoder.bufferSize(), 128);
 
@@ -202,7 +202,7 @@ public class CharDecoderTest {
             os.flush();
         }
 
-        List<CharRecord> records = decoder.next(2);
+        List<Record<String>> records = decoder.next(2);
         assertEquals(records.size(), 2);
         assertEquals(records.get(0).getRecord(), "foo");
         assertEquals(records.get(0).getStreamOffset(), 2 + 4 * 2);
@@ -221,7 +221,7 @@ public class CharDecoderTest {
 
         char[] buffer = new char[2];
         CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
-        List<CharRecord> result = decoder.next(1);
+        List<Record<String>> result = decoder.next(1);
         assertNull(result); // EOF
 
         when(reader.read(any(), anyInt(), anyInt()))
@@ -243,7 +243,7 @@ public class CharDecoderTest {
 
         char[] buffer = new char[2];
         CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
-        List<CharRecord> result = decoder.next(1);
+        List<Record<String>> result = decoder.next(1);
         assertNull(result); // EOF
 
         when(reader.ready())
@@ -268,7 +268,7 @@ public class CharDecoderTest {
 
         char[] buffer = new char[2];
         CharDecoder decoder = new CharDecoder(null, 0, reader, null, buffer, 0);
-        List<CharRecord> result = decoder.next(1);
+        List<Record<String>> result = decoder.next(1);
         assertNull(result); // EOF
 
         when(reader.read(any(), anyInt(), anyInt()))
@@ -293,7 +293,7 @@ public class CharDecoderTest {
                 .thenReturn(1)
                 .thenReturn(-1);
         buffer[0] = 'a';
-        List<CharRecord> result = decoder.next(2);
+        List<Record<String>> result = decoder.next(2);
         assertTrue(result.isEmpty()); // Not enough input
         assertEquals(decoder.getStreamOffset(), 0);
 
@@ -344,10 +344,10 @@ public class CharDecoderTest {
     private void writeAndAssertBufferSize(int batchSize, OutputStream os, byte[] bytes, int expectBufferSize)
             throws IOException {
         writeTimesAndFlush(os, batchSize, bytes);
-        List<CharRecord> records = decoder.next(batchSize);
+        List<Record<String>> records = decoder.next(batchSize);
         assertEquals(batchSize, records.size());
         String expectedLine = new String(bytes, 0, bytes.length - 1); // remove \n
-        for (CharRecord record : records) {
+        for (Record<String> record : records) {
             assertEquals(record.getRecord(), expectedLine);
         }
         assertEquals(decoder.bufferSize(), expectBufferSize);
