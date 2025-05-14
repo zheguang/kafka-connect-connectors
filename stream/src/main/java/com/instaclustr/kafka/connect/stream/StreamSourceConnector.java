@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.stream.Collectors.toList;
+
 public class StreamSourceConnector extends SourceConnector {
     private static final Logger log = LoggerFactory.getLogger(StreamSourceConnector.class);
 
@@ -45,14 +47,14 @@ public class StreamSourceConnector extends SourceConnector {
             Endpoint endpoint = Endpoints.of(props);
             String directory = config.getString(DIRECTORY_CONFIG);
             try {
-                files = endpoint.listRegularFiles(directory).toList();
+                files = endpoint.listRegularFiles(directory).collect(toList());
             } catch (IOException e) {
                 throw new ConnectException(e);
             }
             var knownFiles = Set.copyOf(files);
             directoryWatcher = Watcher.of(getDirectoryFileDiscoveryDuration());
             directoryWatcher.watch(() -> {
-                var currentFiles = endpoint.listRegularFiles(directory).toList();
+                var currentFiles = endpoint.listRegularFiles(directory).collect(toList());
                 if (! knownFiles.containsAll(currentFiles)) {
                     files = currentFiles;
                     return true;
