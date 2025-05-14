@@ -36,7 +36,7 @@ public class WatcherTest {
         when(condition.call()).thenReturn(true, false, true, false);
         Watcher watcher = Watcher.of(Duration.ofMillis(100));
         watcher.watch(condition, action);
-        sleep(Duration.ofMillis(450));
+        sleep(Duration.ofMillis(450).toMillis());
         watcher.close();
 
         verify(condition, times(4)).call();
@@ -48,7 +48,7 @@ public class WatcherTest {
         when(condition.call()).thenThrow(new RuntimeException("condition error"));
         Watcher watcher = Watcher.of(Duration.ofMillis(100));
         watcher.watch(condition, action);
-        sleep(Duration.ofMillis(350));
+        sleep(Duration.ofMillis(350).toMillis());
         watcher.close();
 
         verify(condition, times(3)).call();
@@ -58,12 +58,12 @@ public class WatcherTest {
     @Test
     public void testTimeout() throws Exception {
         when(condition.call()).then(ignore -> { sleep(1000); return true; });
-        Watcher watcher = Watcher.of(Duration.ofMillis(100));
+        Watcher watcher = Watcher.of(Duration.ofMillis(100)); // timeout after 100ms
         watcher.watch(condition, action);
-        sleep(Duration.ofMillis(350)); // timeout at 170ms
+        sleep(Duration.ofMillis(350).toMillis());
         watcher.close();
 
-        verify(condition, times(2)).call(); // at 100ms, 170 + 100ms, 270 + 70 + 100ms
+        verify(condition, times(2)).call(); // fired at 100(initial delay), 100(base)+100(timeout)+100(delay), 400(base)+100(timeout)+100(delay),...
         verifyNoInteractions(action);
     }
     

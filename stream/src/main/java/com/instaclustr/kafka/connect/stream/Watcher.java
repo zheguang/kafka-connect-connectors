@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,20 +22,20 @@ public class Watcher implements Closeable {
 	
 	private final Duration checkDelay;
 	private final Duration stopWait;
-	private final Duration timeout;
+	private final Duration checkTimeout;
 	private final ScheduledExecutorService scheduler;
 	private final ExecutorService executor;
 	
-	Watcher(Duration checkDelay, Duration stopDelay, Duration timeout, ScheduledExecutorService scheduler, ExecutorService executor) {
+	Watcher(Duration checkDelay, Duration stopDelay, Duration checkTimeout, ScheduledExecutorService scheduler, ExecutorService executor) {
 	    this.checkDelay = checkDelay;
 	    this.stopWait = stopDelay;
-	    this.timeout = timeout;
+	    this.checkTimeout = checkTimeout;
 	    this.scheduler = scheduler;
 	    this.executor = executor;
 	}
 	
 	public static Watcher of(Duration checkDelay) {
-	    return new Watcher(checkDelay, Duration.ofSeconds(3), checkDelay.multipliedBy(7).dividedBy(10), Executors.newSingleThreadScheduledExecutor(), Executors.newSingleThreadExecutor());
+	    return new Watcher(checkDelay, Duration.ofSeconds(5), checkDelay, Executors.newSingleThreadScheduledExecutor(), Executors.newSingleThreadExecutor());
 	}
 
 	public ScheduledFuture<?> watch(Callable<Boolean> condition, Runnable action) {
@@ -53,7 +54,7 @@ public class Watcher implements Closeable {
                 }
 	        });
 	        try {
-                future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+                future.get(checkTimeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException | InterruptedException | ExecutionException e) {
                 log.error("Unable to wait for condition to meet, canceling the action", e);
                 future.cancel(true);
@@ -68,7 +69,7 @@ public class Watcher implements Closeable {
 	            new Thread(() -> shutdown(scheduler, stopWait)),
 	            new Thread(() -> shutdown(executor, stopWait)));
 
-	    ts.stream().map(t -> { t.start(); return t; }).toList().forEach(t -> {
+	    ts.stream().map(t -> { t.start(); return t; }).collect(Collectors.toList()).forEach(t -> {
             try {
                 t.join();
             } catch (InterruptedException e) {
