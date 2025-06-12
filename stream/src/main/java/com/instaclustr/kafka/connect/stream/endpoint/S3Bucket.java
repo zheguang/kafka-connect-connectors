@@ -6,6 +6,7 @@ import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.instaclustr.kafka.connect.stream.Endpoint;
 import com.instaclustr.kafka.connect.stream.ExtentInputStream;
+import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
 import org.apache.kafka.common.config.ConfigDef;
 
 import java.io.IOException;
@@ -37,11 +38,7 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
 
     @Override
     public InputStream openInputStream(String objectKey) throws IOException {
-        try {
-            return ExtentInputStream.of(objectKey, getFileSize(objectKey), this);
-        } catch (SdkClientException e) {
-            throw new IOException (e);
-        }
+        return openRandomAccessInputStream(objectKey);
     }
 
     @Override
@@ -52,6 +49,15 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
             return Objects.requireNonNull(
                     getClient().getObject(getObjectRequest).getObjectContent(),
                     "No stream found");
+        } catch (SdkClientException e) {
+            throw new IOException (e);
+        }
+    }
+
+    @Override
+    public RandomAccessInputStream openRandomAccessInputStream(String objectKey) throws IOException {
+        try {
+            return ExtentInputStream.of(objectKey, getFileSize(objectKey), this);
         } catch (SdkClientException e) {
             throw new IOException (e);
         }

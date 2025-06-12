@@ -8,7 +8,9 @@ public interface Endpoint {
 
     InputStream openInputStream(String path) throws IOException;
 
+    RandomAccessInputStream openRandomAccessInputStream(String path) throws IOException;
+
     Stream<String> listRegularFiles(String path) throws IOException;
 
-	long getFileSize(String path) throws IOException;
+    long getFileSize(String path) throws IOException;
 }

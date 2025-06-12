@@ -15,13 +15,14 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.fail;
 
 public class ExtentInputStreamTest {
 
     private ExtentBased endpoint;
     private ExtentInputStream stream;
-    private File tempFile;
-    private static final String FILE_NAME = "FILE_NAME";
+    private File tempFile; // for one extent in the stream
+    private static final String FILE_NAME = "dummy-file-name"; // for entire stream
 
     @BeforeMethod
     public void setup() throws IOException {
@@ -188,6 +189,105 @@ public class ExtentInputStreamTest {
     }
 
     @Test
+    public void skipFileSize() throws IOException {
+        InputStream extent = mock(InputStream.class);
+        when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+
+        long fileSize = 6; // 123456
+        long extentStride = 3;
+        stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
+
+        long skipLen = fileSize; // skip: 123456
+        long skipped = stream.skip(skipLen);
+        assertEquals(skipped, skipLen);
+        assertEquals(stream.getExtentStartOffset(), fileSize);
+        assertEquals(stream.getFileOffset(), fileSize);
+    }
+
+    @Test
+    public void skipTooManyBytes() throws IOException {
+        InputStream extent = mock(InputStream.class);
+        when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+
+        long fileSize = 6; // 123456
+        long extentStride = 3;
+        stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
+
+        long skipLen = 7; // skip: 1234567, of course 7th byte is one pass the file size 6
+        long skipped = stream.skip(skipLen);
+        assertEquals(skipped, fileSize);
+        assertEquals(stream.getExtentStartOffset(), fileSize);
+        assertEquals(stream.getFileOffset(), fileSize);
+    }
+
+    @Test
+    public void skipTwice() throws IOException {
+        InputStream extent = mock(InputStream.class);
+        when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+
+        long fileSize = 6; // 123456
+        long extentStride = 3;
+        stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
+
+        long skipped = stream.skip(2);
+        assertEquals(skipped, 2);
+        assertEquals(stream.getExtentStartOffset(), 2);
+        assertEquals(stream.getFileOffset(), 2);
+
+        skipped = stream.skip(2);
+        assertEquals(skipped, 2);
+        assertEquals(stream.getExtentStartOffset(), 2 + 2);
+        assertEquals(stream.getFileOffset(), 2 + 2);
+    }
+
+    @Test
+    public void randomAccess() throws IOException {
+        InputStream extent = mock(InputStream.class);
+        when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+
+        long fileSize = 6; // 123456
+        long extentStride = 3;
+        stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
+
+        stream.seek(3);
+        assertEquals(stream.getExtentStartOffset(), 3);
+        assertEquals(stream.getFileOffset(), 3);
+
+        stream.seek(4);
+        assertEquals(stream.getExtentStartOffset(), 4);
+        assertEquals(stream.getFileOffset(), 4);
+
+        stream.seek(1);
+        assertEquals(stream.getExtentStartOffset(), 1);
+        assertEquals(stream.getFileOffset(), 1);
+
+        stream.seek(0);
+        assertEquals(stream.getExtentStartOffset(), 0);
+        assertEquals(stream.getFileOffset(), 0);
+
+        try {
+            stream.seek(-1);
+            fail("Should throw at invalid offset");
+        } catch (AssertionError expected) {
+            // pass
+        }
+
+        try {
+            stream.seek(fileSize);
+            fail("Should throw at invalid offset");
+        } catch (AssertionError expected) {
+            // pass
+        }
+
+        try {
+            stream.seek(fileSize + 1);
+            fail("Should throw at invalid offset");
+        } catch (AssertionError expected) {
+            // pass
+        }
+    }
+
+    @Test
     public void notAvailableWhenEof() throws IOException {
         long fileSize = 0; // empty file
         long extentStride = 3;
@@ -217,5 +317,32 @@ public class ExtentInputStreamTest {
 
         stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
         assertEquals(stream.available(), extentStride);
+    }
+
+    @Test
+    public void readIntSignExention() throws IOException {
+        try (var extent = Files.newInputStream(tempFile.toPath())) {
+            when(endpoint.openInputStream(anyString(), anyLong(), anyLong())).thenReturn(extent);
+
+            final var out = Files.newOutputStream(tempFile.toPath());
+            int v = 5580;
+            out.write((v >>> 0) & 0xFF); // 204
+            out.write((v >>> 8) & 0xFF); // 21
+            out.write((v >>> 16) & 0xFF); // 0
+            out.write((v >>> 24) & 0xFF); // 0
+            out.flush();
+            out.close();
+
+            long fileSize = 4;
+            long extentStride = fileSize;
+
+            stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, extentStride);
+
+            assertEquals(stream.read(), 204);
+            assertEquals(stream.read(), 21);
+            assertEquals(stream.read(), 0);
+            assertEquals(stream.read(), 0);
+            assertEof();
+        }
     }
 }

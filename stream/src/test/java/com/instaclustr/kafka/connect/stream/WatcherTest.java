@@ -40,7 +40,7 @@ public class WatcherTest {
         watcher.close();
 
         verify(condition, times(4)).call();
-        verify(action, times(2));
+        verify(action, times(2)).run();
     }
     
     @Test

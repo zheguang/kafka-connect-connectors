@@ -8,7 +8,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class ExtentInputStream extends FilterInputStream {
+public class ExtentInputStream extends RandomAccessInputStream {
     public static final long DEFAULT_EXTENT_STRIDE = 1024 * 1024;
     public static Logger log = LoggerFactory.getLogger(ExtentInputStream.class);
 
@@ -73,7 +73,16 @@ public class ExtentInputStream extends FilterInputStream {
 
     @Override
     public int read() throws IOException {
-        throw new IOException("Unsupported");
+        byte[] b = new byte[1];
+        int n;
+        while ((n = read(b, 0, b.length)) < 1) {
+            if (n == -1) {
+                return -1;
+            }
+            assert n == 0;
+        }
+        assert n == 1;
+        return b[0] < 0 ? 256 + b[0] : b[0]; // work around Java's sign extention for byte-int conversion
     }
 
     @Override
@@ -146,17 +155,26 @@ public class ExtentInputStream extends FilterInputStream {
     }
 
     @Override
+    public void seek(long offset) throws IOException {
+        assert 0 <= offset && offset < fileSize: "seek offset should be within [0, fileSize)";
+        long n = offset - fileOffset;
+        skip(n);
+    }
+
+    @Override
     public long skip(long length) throws IOException {
         // Only efficient when skipping across extents. Inefficient when skipping within an extent
-        long newOffset = Math.min(extentStartOffset + length, fileSize);
+        long newOffset = Math.max(Math.min(fileOffset + length, fileSize), 0);
         if (isExtentOpen()) {
             closeExtent();
         }
-        long skipped = newOffset - extentStartOffset;
+        long skipped = newOffset - fileOffset;
         if (hasExtentAt(newOffset)) {
             setExtentAt(newOffset);
         } else {
+            // Either at fileSize or at 0
             extentStartOffset = newOffset;
+            fileOffset = newOffset;
         }
         return skipped;
     }
@@ -225,7 +243,13 @@ public class ExtentInputStream extends FilterInputStream {
         return Math.min(extentStride, fileSize - offset);
     }
 
+    @Override
     public long getStreamOffset() {
         return fileOffset;
+    }
+
+    @Override
+    public long getSize() {
+	return fileSize;
     }
 }

@@ -258,7 +258,7 @@ public class StreamSourceTask extends SourceTask {
         return Collections.singletonMap(FILENAME_FIELD, filename);
     }
 
-    private Map<String, Long> offsetValue(Long pos) {
+    private Map<String, Long> offsetValue(long pos) {
         return Collections.singletonMap(POSITION_FIELD, pos);
     }
 
