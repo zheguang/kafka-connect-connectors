@@ -7,6 +7,7 @@ import java.util.Objects;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -29,33 +30,58 @@ public class ParquetKafkaTypeConverter implements TypeConverter<Schema> {
 
     @Override
     public Schema convertPrimitiveType(List<GroupType> path, PrimitiveType primitiveType) {
+        switch (primitiveType.getRepetition()) {
+            case REQUIRED:
+                return schemaBuilderOf(primitiveType).build();
+
+            case REPEATED:
+                return SchemaBuilder.array(schemaBuilderOf(primitiveType).build())
+                        .name(primitiveType.getName())
+                        .optional()
+                        .build();
+
+            case OPTIONAL:
+                return schemaBuilderOf(primitiveType).optional().build();
+
+            default:
+                throw new ConnectException("Unexpected type repetition");
+        }
+    }
+
+    private static SchemaBuilder schemaBuilderOf(PrimitiveType primitiveType) {
         PrimitiveTypeName parquetType = primitiveType.getPrimitiveTypeName();
         Schema.Type kafkaType = Objects.requireNonNull(P2K_PRIMITIVE_TYPE.get(parquetType), "Type mapping is undefined for Parquet: " + parquetType);
-        SchemaBuilder kafkaSchema = SchemaBuilder.type(kafkaType).name(primitiveType.getName());
-        if (! primitiveType.isRepetition(Type.Repetition.REQUIRED)) {
-            kafkaSchema = kafkaSchema.optional();
-        }
-        return kafkaSchema.build();
+        return SchemaBuilder.type(kafkaType).name(primitiveType.getName());
     }
 
     @Override
     public Schema convertGroupType(List<GroupType> path, GroupType groupType, List<Schema> children) {
-        return structOf(groupType, children);
+        switch (groupType.getRepetition()) {
+            case REQUIRED:
+                return structBuilderOf(groupType, children).build();
+            case REPEATED:
+                return SchemaBuilder.array(structBuilderOf(groupType, children).build())
+                        .name(groupType.getName())
+                        .optional()
+                        .build();
+            case OPTIONAL:
+                return structBuilderOf(groupType, children).optional().build();
+            default:
+                throw new ConverterError("Unexected type repetition");
+
+        }
     }
 
     @Override
     public Schema convertMessageType(MessageType messageType, List<Schema> children) {
-        return structOf(messageType, children);
+        return structBuilderOf(messageType, children).build();
     }
 
-    private static Schema structOf(Type type, List<Schema> children) {
+    private static SchemaBuilder structBuilderOf(Type type, List<Schema> children) {
         SchemaBuilder struct = SchemaBuilder.struct().name(type.getName());
-        if (! type.isRepetition(Type.Repetition.REQUIRED)) {
-            struct = struct.optional();
-        }
         for (Schema c : children) {
             struct.field(c.name(), c);
         }
-        return struct.build();
+        return struct;
     }
 }

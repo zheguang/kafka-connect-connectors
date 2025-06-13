@@ -94,10 +94,30 @@ public class ParquetDecoderTest {
         decoder = ParquetDecoder.from(rais);
 
         System.out.println("Start decoding");
-        List<Record<Struct>> batch = decoder.next(1);
-        assertEquals(batch.size(), 1);
-        System.out.println(batch.get(0));
-        System.out.println(DATA.get(0));
+        {
+            List<Record<Struct>> batch = decoder.next(1);
+            assertEquals(batch.size(), 1);
+
+            Struct actual = batch.get(0).getRecord();
+            PhoneBookWriter.User expected = DATA.get(0);
+
+            // User [id=0, name=p0, phoneNumbers=[PhoneNumber [number=0, kind=cell]], location=null, accounts=null]
+            assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
+            assertEquals(new String(actual.getBytes("name")), expected.getName());
+            assertTrue(actual.get("phoneNumbers") instanceof Struct);
+        }
+        {
+            List<Record<Struct>> batch = decoder.next(1);
+            assertEquals(batch.size(), 1);
+
+            Struct actual = batch.get(0).getRecord();
+            PhoneBookWriter.User expected = DATA.get(1);
+
+            // User [id=0, name=p0, phoneNumbers=[PhoneNumber [number=0, kind=cell]], location=null, accounts=null]
+            assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
+            assertEquals(new String(actual.getBytes("name")), expected.getName());
+            assertTrue(actual.get("phoneNumbers") instanceof Struct);
+        }
     }
 
     @Test

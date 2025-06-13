@@ -1,5 +1,6 @@
 package com.instaclustr.kafka.connect.stream.types.parquet;
 
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.parquet.example.Paper;
 import org.apache.parquet.schema.MessageType;
@@ -18,5 +19,25 @@ public class ParquetKafkaDataConverterTest {
         ParquetKafkaTypeConverter typeConverter = new ParquetKafkaTypeConverter();
         assertTrue(Paper.r1.getType() instanceof MessageType);
         assertEquals(result.schema(), ((MessageType) Paper.r1.getType()).convertWith(typeConverter));
+    }
+
+    @Test
+    public void convertSimpleGroup() {
+        ParquetKafkaDataConverter converter = ParquetKafkaDataConverter.newConverter();
+
+        // message Document {
+        //     required int64 DocId;
+        //     repeated group Name {
+        //         repeated group Language {
+        //             optional binary Country;
+        //         }
+        //     }
+        // }
+        ParquetKafkaTypeConverter typeConverter = new ParquetKafkaTypeConverter();
+        System.err.println(Paper.pr1.getType());
+        Schema kafakSchema = ((MessageType) Paper.pr1.getType()).convertWith(typeConverter);
+        System.err.println(kafakSchema);
+        Struct result = converter.convert(Paper.pr1);
+        System.out.println(result);
     }
 }
