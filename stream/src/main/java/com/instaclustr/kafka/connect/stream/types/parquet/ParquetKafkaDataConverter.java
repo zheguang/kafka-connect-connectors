@@ -49,7 +49,7 @@ public class ParquetKafkaDataConverter {
                 case REQUIRED: {
                     assert reps == 1 : "Required value should appear once, but found: " + reps;
                     Object kafkaValue = convertFieldSingleton(kafkaSchema, group, field, fieldIndex);
-                    result.put(name, convertFieldSingleton(kafkaSchema, group, field, fieldIndex));
+                    result.put(name, kafkaValue);
                 }
                 break;
 
@@ -59,7 +59,7 @@ public class ParquetKafkaDataConverter {
                     } else {
                         assert reps == 1 : "Optional value should be present no more than once, but found: " + reps;
                         Object kafkaValue = convertFieldSingleton(kafkaSchema, group, field, fieldIndex);
-                        result.put(name, convertFieldSingleton(kafkaSchema, group, field, fieldIndex));
+                        result.put(name, kafkaValue);
                     }
                 }
                 break;
@@ -81,14 +81,14 @@ public class ParquetKafkaDataConverter {
     /**
      * Convert a Paruqet Group's Field that is repeated.  Returns a List of values.
      */
-    private List<Object> convertFieldRepeated(final Schema kafkaSchema, final SimpleGroup group, final Type field, final int reps, final int fieldIndex) {
+    private List<Object> convertFieldRepeated(final Schema parentSchema, final SimpleGroup group, final Type field, final int reps, final int fieldIndex) {
         List<Object> values = new ArrayList<>(reps);
         if (field instanceof GroupType) {
             // For repeated values as Groups, recurs into {@link #convert(Schema, SimpleGroup) convert} method.
             for (int r = 0; r < reps; r++) {
                 Object value = group.getObject(fieldIndex, r);
                 assert value instanceof SimpleGroup : "Array of structs";
-                Schema kafkaFieldSchema = kafkaSchema.fields().get(fieldIndex).schema().valueSchema();
+                Schema kafkaFieldSchema = parentSchema.fields().get(fieldIndex).schema().valueSchema();
                 values.add(convert(kafkaFieldSchema, (SimpleGroup) value));
             }
         } else {
@@ -119,14 +119,14 @@ public class ParquetKafkaDataConverter {
     /**
      * Convert a Parquet Group's Field that is a "singleton" -- a required or optional-present value.
      */
-    private Object convertFieldSingleton(final Schema kafkaSchema, final SimpleGroup group, final Type field, final int fieldIndex) {
+    private Object convertFieldSingleton(final Schema parentSchema, final SimpleGroup group, final Type field, final int fieldIndex) {
         Object value = group.getObject(fieldIndex, 0);
         assert value != null : "Required value should be nonnull";
         Object kafkaValue;
         if (field instanceof GroupType) {
             // When the singleton itself is a Group, recurs into {@link #convert(Schema, SimpleGroup) convert} method.
             assert value instanceof SimpleGroup : "Unsupported Parquet group value type: " + value.getClass();
-            Schema kafkaFieldSchema = kafkaSchema.fields().get(fieldIndex).schema();
+            Schema kafkaFieldSchema = parentSchema.fields().get(fieldIndex).schema();
             kafkaValue = convert(kafkaFieldSchema, (SimpleGroup) value);
         } else {
             // Primitive
