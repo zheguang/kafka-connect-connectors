@@ -21,10 +21,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.apache.parquet.hadoop.ParquetFileWriter.Mode.OVERWRITE;
 import static org.testng.Assert.*;
@@ -34,7 +31,8 @@ public class ParquetDecoderTest {
     private ParquetDecoder decoder;
     private File tempFile;
 
-    private static final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(1000));
+    private static final int NUM_USERS = 1000;
+    private static final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(NUM_USERS));
 
     private static List<PhoneBookWriter.User> makeUsers(int rowCount) {
         List<PhoneBookWriter.User> users = new ArrayList<>();
@@ -46,9 +44,19 @@ public class ParquetDecoderTest {
             if (i % 3 == 2) {
                 location = new PhoneBookWriter.Location((double) i, null);
             }
+            Map<String, Double> accounts = null;
+            if (i % 3 == 0) {
+                accounts = new HashMap<>();
+                accounts.put("k1", 1.0);
+                accounts.put("k2", 2.0);
+            }
             // row index of each row in the file is same as the user id.
             users.add(new PhoneBookWriter.User(
-                        i, "p" + i, Arrays.asList(new PhoneBookWriter.PhoneNumber(i, "cell")), location));
+                    i,
+                    "p" + i,
+                    List.of(new PhoneBookWriter.PhoneNumber(i, "cell")),
+                    location,
+                    accounts));
         }
         return users;
     }
@@ -87,106 +95,67 @@ public class ParquetDecoderTest {
     }
 
     @Test
-    public void decode() throws IOException {
-        // Use LocalFile to open an RandomAccessInputStream from tempFile
+    public void decodeOneByOne() throws IOException {
         LocalFile localFile = new LocalFile();
         RandomAccessInputStream rais = localFile.openRandomAccessInputStream(tempFile.getAbsolutePath());
         decoder = ParquetDecoder.from(rais);
 
-        System.out.println("Start decoding");
-        {
+        for (PhoneBookWriter.User expected : DATA) {
             List<Record<Struct>> batch = decoder.next(1);
             assertEquals(batch.size(), 1);
-
             Struct actual = batch.get(0).getRecord();
-            PhoneBookWriter.User expected = DATA.get(0);
-
-            // User [id=0, name=p0, phoneNumbers=[PhoneNumber [number=0, kind=cell]], location=null, accounts=null]
-            assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
-            assertEquals(new String(actual.getBytes("name")), expected.getName());
-            assertTrue(actual.get("phoneNumbers") instanceof Struct);
+            checkUser(expected, actual);
         }
-        {
-            List<Record<Struct>> batch = decoder.next(1);
-            assertEquals(batch.size(), 1);
+    }
 
-            Struct actual = batch.get(0).getRecord();
-            PhoneBookWriter.User expected = DATA.get(1);
+    private static void checkUser(final PhoneBookWriter.User expected, final Struct actual) {
+        assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
+        assertEquals(new String(actual.getBytes("name")), expected.getName());
+        assertTrue(actual.get("phoneNumbers") instanceof Struct);
+        List<Struct> phone = actual.getStruct("phoneNumbers").<Struct>getArray("phone");
+        assertEquals(phone.size(), expected.getPhoneNumbers().size());
+        assertEquals(phone.get(0).get("number"), expected.getPhoneNumbers().get(0).getNumber());
+        assertEquals(new String(phone.get(0).getBytes("kind")), expected.getPhoneNumbers().get(0).getKind());
 
-            // User [id=0, name=p0, phoneNumbers=[PhoneNumber [number=0, kind=cell]], location=null, accounts=null]
-            assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
-            assertEquals(new String(actual.getBytes("name")), expected.getName());
-            assertTrue(actual.get("phoneNumbers") instanceof Struct);
+        if (expected.getLocation() == null) {
+            assertNull(actual.getStruct("location"));
+        } else {
+            assertEquals(actual.getStruct("location").getFloat64("lon"), expected.getLocation().getLon());
+            assertEquals(actual.getStruct("location").getFloat64("lat"), expected.getLocation().getLat());
+        }
+
+        if (expected.getAccounts() == null) {
+            assertNull(actual.getStruct("accounts"));
+        } else {
+            List<Struct> key_value = actual.getStruct("accounts").getArray("key_value");
+            assertEquals(key_value.size(), 2);
+            assertEquals(new String(key_value.get(0).getBytes("key")), "k1");
+            assertEquals(key_value.get(0).getFloat64("value"), Double.valueOf(1.0));
+            assertEquals(new String(key_value.get(1).getBytes("key")), "k2");
+            assertEquals(key_value.get(1).getFloat64("value"), Double.valueOf(2.0));
         }
     }
 
     @Test
-    public void decodeLocal() throws IOException {
-        // File myFile = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
-        // RandomAccessInputStream rais = localFile.openRandomAccessInputStream(myFile.getAbsolutePath());
-        File file = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
-        SeekableInputStream fileStream = new LocalInputFile(file.toPath()).newStream();
-        RandomAccessInputStream rais = new RandomAccessInputStream(fileStream) {
-            @Override
-            public void seek(final long offset) throws IOException {
-                fileStream.seek(offset);
-            }
-
-            @Override
-            public long getStreamOffset() throws IOException {
-                return fileStream.getPos();
-            }
-
-            @Override
-            public long getSize() {
-                return file.length();
-            }
-        };
+    public void decodeBatch() throws IOException {
+        LocalFile localFile = new LocalFile();
+        RandomAccessInputStream rais = localFile.openRandomAccessInputStream(tempFile.getAbsolutePath());
         decoder = ParquetDecoder.from(rais);
 
-        System.out.println("Start decoding");
-        List<Record<Struct>> batch = decoder.next(1);
-        assertEquals(batch.size(), 1);
-        System.out.println(batch.get(0));
-    }
-
-    @Test
-    public void decodeLocal2() throws IOException {
-        File file = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
-        SeekableInputStream fileStream = new LocalInputFile(file.toPath()).newStream();
-
-        StreamParquetReader reader = new StreamParquetReader(new StreamInputFile(() -> fileStream, file.length()));
-
-        int i = 0;
-        while (true) {
-            System.out.println("Progress: " + reader.getProgress());
-            SimpleGroup record = (SimpleGroup) reader.read();
-            System.out.println("\nParquet record " + i + ": " + record);
-            if (record == null) {
-                break;
+        int batchSize = 257;
+        for (int i = 0; i < DATA.size(); i+=batchSize) {
+            List<Record<Struct>> batch = decoder.next(batchSize);
+            if (i + batchSize <= NUM_USERS) {
+                assertEquals(batch.size(), batchSize);
+            } else {
+                assertTrue(batch.size() < batchSize);
             }
 
-            ParquetKafkaDataConverter converter = ParquetKafkaDataConverter.newConverter();
-            Struct struct = converter.convert(record);
-
-            SourceRecord sourceRecord = new SourceRecord(
-                    null,
-                    null,
-                    "mytopic",
-                    null,
-                    null,
-                    null,
-                    struct.schema(),
-                    struct,
-                    System.currentTimeMillis()
-            );
-
-            System.out.println("Kafka record " + i + ": " + sourceRecord);
-            i++;
+            for (int j = 0; j < batch.size(); j++) {
+                Struct actual = batch.get(j).getRecord();
+                PhoneBookWriter.User expected = DATA.get(i + j);
+                checkUser(expected, actual);
+            }
         }
-
-        System.out.println("Close reader");
-        reader.close();
-
     }
 }
