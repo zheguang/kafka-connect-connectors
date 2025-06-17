@@ -123,7 +123,7 @@ public class StreamSourceTask extends SourceTask {
                     log.debug("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
                     closeForNextFile();
                 }
-                if (eof(filename)) {
+                if (isEof(filename)) {
                     log.debug("Continual reads reached EOF: {}", filename);
                     closeForNextFile();
                 }
@@ -177,7 +177,7 @@ public class StreamSourceTask extends SourceTask {
             Optional<Float> lastReadProgress = getLastReadProgress(state);
 
             try {
-                if (eofBy(lastReadOffset, filename) || eofBy(lastReadProgress)) {
+                if (isEofByOffset(lastReadOffset, filename) || isEofByProgress(lastReadProgress)) {
                     log.debug("Skip opening stream, last read was at end of file: {}", filename);
                     closeForNextFile();
                     continue;
@@ -199,20 +199,20 @@ public class StreamSourceTask extends SourceTask {
         return result;
     }
 
-    private boolean eof(String filename) throws IOException {
+    private boolean isEof(String filename) throws IOException {
         Map<String, Object> state = context.offsetStorageReader()
                 .offset(Collections.singletonMap(FILENAME_FIELD, filename));
         Optional<Long> lastReadOffset = getLastReadOffset(state);
         Optional<Float> lastReadProgress = getLastReadProgress(state);
-        return eofBy(lastReadOffset, filename) || eofBy(lastReadProgress);
+        return isEofByOffset(lastReadOffset, filename) || isEofByProgress(lastReadProgress);
     }
 
-    private boolean eofBy(Optional<Long> lastReadOffset, String filename) throws IOException {
+    private boolean isEofByOffset(Optional<Long> lastReadOffset, String filename) throws IOException {
         // Get file size lazily due to I/O.  This method might be called periodically on closed files
         return lastReadOffset.isPresent() && lastReadOffset.get() >= endpoint.getFileSize(filename);
     }
 
-    private boolean eofBy(Optional<Float> lastReadProgress) {
+    private boolean isEofByProgress(Optional<Float> lastReadProgress) {
         return lastReadProgress.isPresent() && lastReadProgress.get() >= 1.0;
     }
 
