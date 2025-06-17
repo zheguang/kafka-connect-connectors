@@ -1,6 +1,7 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
 import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
+import com.instaclustr.kafka.connect.stream.StreamSourceTask;
 import com.instaclustr.kafka.connect.stream.types.parquet.ParquetKafkaDataConverter;
 import com.instaclustr.kafka.connect.stream.types.parquet.StreamInputFile;
 import com.instaclustr.kafka.connect.stream.types.parquet.ParquetKafkaDataConverter;
@@ -12,9 +13,11 @@ import org.apache.parquet.example.data.simple.SimpleGroup;
 import org.apache.parquet.hadoop.StreamParquetReader;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.SeekableInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ParquetDecoder implements Decoder<Record<Struct>> {
-
+public class ParquetDecoder implements Decoder<Struct> {
+    private static final Logger log = LoggerFactory.getLogger(ParquetDecoder.class);
     private final StreamParquetReader reader;
     private final ParquetKafkaDataConverter converter;
 
@@ -42,7 +45,9 @@ public class ParquetDecoder implements Decoder<Record<Struct>> {
 
     @Override
     public List<Record<Struct>> next(int batchSize) throws IOException {
-        if (reader.getProgress() >= 1) {
+        Float tryProgress = reader.getProgress();
+        if (tryProgress == null || tryProgress >= 1) {
+            log.debug("Not reading next records due to progress: " + tryProgress);
             return null;
         }
         List<Record<Struct>> result = new ArrayList<>();
@@ -52,9 +57,14 @@ public class ParquetDecoder implements Decoder<Record<Struct>> {
                 return result;
             }
             Struct struct = converter.convert(group);
-            result.add(new Record<>(struct, 0)); // do not remember progress
+            result.add(new Record<>(struct, null, reader.getProgress(), struct.schema()));
         }
         return result;
+    }
+
+    @Override
+    public void skipFirstBytes(final long numBytes) throws IOException {
+        throw new CodecError("Not supported");
     }
 
     @Override

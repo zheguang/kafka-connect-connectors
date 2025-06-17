@@ -2,6 +2,7 @@ package com.instaclustr.kafka.connect.stream.codec;
 
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.data.Schema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class CharDecoder implements Decoder<Record<String>> {
+public class CharDecoder implements Decoder<String> {
     public static final String CHARACTER_SET = "character.set";
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(CHARACTER_SET, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Character set");
@@ -64,6 +65,7 @@ public class CharDecoder implements Decoder<Record<String>> {
                 reader, charset, buffer, 0);
     }
 
+    @Override
     public void skipFirstBytes(final long numBytes) throws IOException {
         long skipLeft = numBytes;
         while (skipLeft > 0) {
@@ -107,7 +109,7 @@ public class CharDecoder implements Decoder<Record<String>> {
                 if (line != null) {
                     foundOneLine = true;
                     log.debug("Extracted a line from buffer");
-                    records.add(new Record<>(line, streamOffset));
+                    records.add(new Record<>(line, streamOffset, null, Schema.STRING_SCHEMA));
 
                     if (records.size() >= batchSize) {
                         log.debug("Return records in full batch: size=" + records.size());

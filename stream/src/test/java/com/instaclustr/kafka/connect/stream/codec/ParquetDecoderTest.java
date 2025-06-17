@@ -34,7 +34,7 @@ public class ParquetDecoderTest {
     private static final int NUM_USERS = 1000;
     private static final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(NUM_USERS));
 
-    private static List<PhoneBookWriter.User> makeUsers(int rowCount) {
+    public static List<PhoneBookWriter.User> makeUsers(int rowCount) {
         List<PhoneBookWriter.User> users = new ArrayList<>();
         for (int i = 0; i < rowCount; i++) {
             PhoneBookWriter.Location location = null;
@@ -61,7 +61,7 @@ public class ParquetDecoderTest {
         return users;
     }
 
-    private static void writePhoneBookToFile(Path file, ParquetProperties.WriterVersion parquetVersion)
+    public static void writePhoneBookToFile(Path file, ParquetProperties.WriterVersion parquetVersion)
             throws IOException {
             int pageSize = DATA.size() / 10; // Ensure that several pages will be created
             int rowGroupSize = pageSize * 6 * 5; // Ensure that there are more row-groups created
@@ -105,10 +105,11 @@ public class ParquetDecoderTest {
             assertEquals(batch.size(), 1);
             Struct actual = batch.get(0).getRecord();
             checkUser(expected, actual);
+            checkRecordMetadata(batch.get(0), expected.equals(DATA.get(DATA.size() - 1)));
         }
     }
 
-    private static void checkUser(final PhoneBookWriter.User expected, final Struct actual) {
+    public static void checkUser(final PhoneBookWriter.User expected, final Struct actual) {
         assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
         assertEquals(new String(actual.getBytes("name")), expected.getName());
         assertTrue(actual.get("phoneNumbers") instanceof Struct);
@@ -155,7 +156,29 @@ public class ParquetDecoderTest {
                 Struct actual = batch.get(j).getRecord();
                 PhoneBookWriter.User expected = DATA.get(i + j);
                 checkUser(expected, actual);
+                checkRecordMetadata(batch.get(j), i + j == DATA.size() - 1);
+                
             }
         }
+    }
+
+    public static void checkRecordMetadata(Record<Struct> record, boolean isLastRecord) {
+        assertNotNull(record.getSchema());
+        assertNull(record.getStreamOffset());
+        assertNotNull(record.getStreamProgress());
+        if (isLastRecord) {
+            // last record
+            assertEquals(record.getStreamProgress(), Float.valueOf(1));
+        } else {
+            assertTrue(0 < record.getStreamProgress() && record.getStreamProgress() < 1.0);
+        }
+    }
+    
+    @Test
+    public void writerVersion1() throws IOException {
+        teardown(); // set up tempFile again for parquet version 1
+        tempFile = File.createTempFile("ParquetDecoderTest-tempFile-v1", ".parquet");
+        writePhoneBookToFile(new Path(tempFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_1_0);
+        decodeBatch();
     }
 }

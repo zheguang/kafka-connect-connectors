@@ -56,11 +56,11 @@ public class CharDecoderTest {
 
         Record<String> record = records.get(0);
         assertEquals(record.getRecord(), "");
-        assertEquals(record.getStreamOffset(), 1);
+        assertEquals(record.getStreamOffset(), Long.valueOf(1));
 
         record = records.get(1);
         assertEquals(record.getRecord(), "foo");
-        assertEquals(record.getStreamOffset(), 5);
+        assertEquals(record.getStreamOffset(), Long.valueOf(5));
     }
 
     @Test
@@ -107,7 +107,7 @@ public class CharDecoderTest {
         Record<String> record = records.get(0);
         String expectedRecord = "irst line";
         assertEquals(record.getRecord(), expectedRecord);
-        assertEquals(record.getStreamOffset(), line.getBytes(charset).length);
+        assertEquals(record.getStreamOffset(), Long.valueOf(line.getBytes(charset).length));
     }
     
     @Test
@@ -127,7 +127,7 @@ public class CharDecoderTest {
 
         Record<String> record = records.get(0);
         assertEquals(record.getRecord(), "first line");
-        assertEquals(record.getStreamOffset(), 2 + "first line\n".length() * 2);
+        assertEquals(record.getStreamOffset(), Long.valueOf(2 + "first line\n".length() * 2));
         
         try (CharDecoder decoder2 = CharDecoder.of(Files.newInputStream(tempFile.toPath()), charset)) {
 			decoder2.skipFirstBytes(record.getStreamOffset());
@@ -136,7 +136,7 @@ public class CharDecoderTest {
 			assertEquals(records.size(), 1);
 			record = records.get(0);
 			assertEquals(record.getRecord(), "second line");
-			assertEquals(record.getStreamOffset(), 2 + content.length() * 2);
+			assertEquals(record.getStreamOffset(), Long.valueOf(2 + content.length() * 2));
         }
     }
 
@@ -205,9 +205,9 @@ public class CharDecoderTest {
         List<Record<String>> records = decoder.next(2);
         assertEquals(records.size(), 2);
         assertEquals(records.get(0).getRecord(), "foo");
-        assertEquals(records.get(0).getStreamOffset(), 2 + 4 * 2);
+        assertEquals(records.get(0).getStreamOffset(), Long.valueOf(2 + 4 * 2));
         assertEquals(records.get(1).getRecord(), "bar");
-        assertEquals(records.get(1).getStreamOffset(), 2 + 4 * 2 + 4 * 2);
+        assertEquals(records.get(1).getStreamOffset(), Long.valueOf(2 + 4 * 2 + 4 * 2));
     }
 
     @Test

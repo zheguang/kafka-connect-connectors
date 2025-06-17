@@ -44,7 +44,7 @@ public class StreamParquetReader implements Closeable {
         }
     }
 
-    public float getProgress() throws IOException {
+    public Float getProgress() throws IOException {
         try {
             if (reader != null) {
                 return reader.getProgress();

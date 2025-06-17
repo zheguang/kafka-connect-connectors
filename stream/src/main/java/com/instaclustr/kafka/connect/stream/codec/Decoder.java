@@ -4,7 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 
-public interface Decoder<T extends Record> extends Closeable {
+public interface Decoder<T> extends Closeable {
     
     /**
      * Get next batch of decoded records.
@@ -14,5 +14,7 @@ public interface Decoder<T extends Record> extends Closeable {
      * no more than the batchSize.
      * @throws IOException
      */
-    List<T> next(int batchSize) throws IOException;
+    List<Record<T>> next(int batchSize) throws IOException;
+
+    void skipFirstBytes(final long numBytes) throws IOException;
 }

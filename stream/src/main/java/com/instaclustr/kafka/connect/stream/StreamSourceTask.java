@@ -1,10 +1,11 @@
 package com.instaclustr.kafka.connect.stream;
 
-import com.instaclustr.kafka.connect.stream.codec.Record;
+import com.instaclustr.kafka.connect.stream.codec.Decoder;
 import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
+import com.instaclustr.kafka.connect.stream.codec.Decoders;
+import com.instaclustr.kafka.connect.stream.codec.Record;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -37,7 +38,7 @@ public class StreamSourceTask extends SourceTask {
     
     public static final String FILENAME_FIELD = "filename";
     public static final String POSITION_FIELD = "position";
-    private static final Schema VALUE_SCHEMA = Schema.STRING_SCHEMA;
+    public static final String PROGRESS_FIELD = "progress";
 
     private String topic;
     private int batchSize;
@@ -49,7 +50,7 @@ public class StreamSourceTask extends SourceTask {
     
     // Mutable state
     private Queue<String> filenames; // head of the queue is the current file
-    private CharDecoder decoder = null;
+    private Decoder<?> decoder = null;
     private int numTries = 0;
 
     // For Connect runtime to load this class
@@ -114,12 +115,16 @@ public class StreamSourceTask extends SourceTask {
 
         try {
             String filename = filenames.element();
-            List<Record<String>> charRecords = decoder.next(batchSize);
+            List<? extends Record<?>> charRecords = decoder.next(batchSize);
             if (charRecords == null) {
                 numTries++;
                 log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);
                 if (numTries > maxReadRetries) { // 1 + retries = total number of tries
                     log.debug("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
+                    closeForNextFile();
+                }
+                if (eof(filename)) {
+                    log.debug("Continual reads reached EOF: {}", filename);
                     closeForNextFile();
                 }
                 waitForThrottle();
@@ -134,8 +139,16 @@ public class StreamSourceTask extends SourceTask {
 
             List<SourceRecord> records = new ArrayList<>();
             for (var charRecord : charRecords) {
-                records.add(new SourceRecord(offsetKey(filename), offsetValue(charRecord.getStreamOffset()), topic,
-                        null, null, null, VALUE_SCHEMA, charRecord.getRecord(), System.currentTimeMillis()));
+                records.add(new SourceRecord(
+                            offsetKey(filename), 
+                            offsetValue(charRecord.getStreamOffset(), charRecord.getStreamProgress()), 
+                            topic,
+                            null, 
+                            null, 
+                            null, 
+                            charRecord.getSchema(), 
+                            charRecord.getRecord(), 
+                            System.currentTimeMillis()));
             }
             log.debug("Return records after decoding or waiting, size: {}, tries: {}", records.size(), numTries);
             numTries = 0; // Next try is first try
@@ -151,9 +164,9 @@ public class StreamSourceTask extends SourceTask {
         return null;
     }
 
-    private CharDecoder maybeGetNextFileDecoder() {
+    private Decoder<?> maybeGetNextFileDecoder() {
         log.debug("Looking for next file to read, total files: {}", filenames.size());
-        CharDecoder result = null;
+        Decoder<?> result = null;
         for (int i = 0; i < filenames.size() && result == null; i++) {
             String filename = filenames.element();
 
@@ -161,17 +174,16 @@ public class StreamSourceTask extends SourceTask {
                     .offset(Collections.singletonMap(FILENAME_FIELD, filename));
             log.debug("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
             Optional<Long> lastReadOffset = getLastReadOffset(state);
+            Optional<Float> lastReadProgress = getLastReadProgress(state);
 
-            InputStream inputStream = null;
             try {
-                if (lastReadOffset.isPresent() && lastReadOffset.get() >= endpoint.getFileSize(filename)) {
+                if (eofBy(lastReadOffset, filename) || eofBy(lastReadProgress)) {
                     log.debug("Skip opening stream, last read was at end of file: {}", filename);
                     closeForNextFile();
                     continue;
                 }
 
-                inputStream = endpoint.openInputStream(filename);
-                result = CharDecoder.of(inputStream, props);
+                result = Decoders.of(endpoint, filename, props);
 
                 if (lastReadOffset.isPresent()) {
                     result.skipFirstBytes(lastReadOffset.get());
@@ -180,19 +192,28 @@ public class StreamSourceTask extends SourceTask {
                 log.debug("Opened {} for reading", filename);
             } catch (IOException e) {
                 log.error("Error while trying to open stream {}: ", filename, e);
-
-                if (inputStream != null) {
-                    try {
-                        inputStream.close();
-                    } catch (IOException ignore) {
-                    }
-                }
-
                 closeForNextFile(); // Set decoder to null
             }
         }
 
         return result;
+    }
+
+    private boolean eof(String filename) throws IOException {
+        Map<String, Object> state = context.offsetStorageReader()
+                .offset(Collections.singletonMap(FILENAME_FIELD, filename));
+        Optional<Long> lastReadOffset = getLastReadOffset(state);
+        Optional<Float> lastReadProgress = getLastReadProgress(state);
+        return eofBy(lastReadOffset, filename) || eofBy(lastReadProgress);
+    }
+
+    private boolean eofBy(Optional<Long> lastReadOffset, String filename) throws IOException {
+        // Get file size lazily due to I/O.  This method might be called periodically on closed files
+        return lastReadOffset.isPresent() && lastReadOffset.get() >= endpoint.getFileSize(filename);
+    }
+
+    private boolean eofBy(Optional<Float> lastReadProgress) {
+        return lastReadProgress.isPresent() && lastReadProgress.get() >= 1.0;
     }
 
     private Optional<Long> getLastReadOffset(Map<String, Object> offset) {
@@ -204,6 +225,20 @@ public class StreamSourceTask extends SourceTask {
             if (lastRecordedOffset != null) {
                 log.debug("Found previous offset, trying to skip to file offset {}", lastRecordedOffset);
                 result = Optional.of((Long) lastRecordedOffset);
+            }
+        }
+        return result;
+    }
+
+    private Optional<Float> getLastReadProgress(Map<String, Object> offset) {
+        Optional<Float> result = Optional.empty();
+        if (offset != null) {
+            Object lastRecordedProgress = offset.get(PROGRESS_FIELD);
+            if (lastRecordedProgress != null && !(lastRecordedProgress instanceof Long))
+                throw new ConnectException("Offset progress is the incorrect type");
+            if (lastRecordedProgress != null) {
+                log.debug("Found previous offset progress: {}", lastRecordedProgress);
+                result = Optional.of((Float) lastRecordedProgress);
             }
         }
         return result;
@@ -258,8 +293,11 @@ public class StreamSourceTask extends SourceTask {
         return Collections.singletonMap(FILENAME_FIELD, filename);
     }
 
-    private Map<String, Long> offsetValue(long pos) {
-        return Collections.singletonMap(POSITION_FIELD, pos);
+    private Map<String, Object> offsetValue(Long pos, Float progress) {
+        Map<String, Object> result = new HashMap<>();
+        result.put(POSITION_FIELD, pos);
+        result.put(PROGRESS_FIELD, progress);
+        return result;
     }
 
     /* Visible for testing */
