@@ -45,7 +45,7 @@ public class ParquetDecoder implements Decoder<Struct> {
 
     @Override
     public List<Record<Struct>> next(int batchSize) throws IOException {
-        Float tryProgress = reader.getProgress();
+        Double tryProgress = reader.getProgress();
         if (tryProgress == null || tryProgress >= 1) {
             log.debug("Not reading next records due to progress: " + tryProgress);
             return null;

@@ -107,7 +107,7 @@ public class StreamSourceTask extends SourceTask {
         if (decoder == null) {
             decoder = maybeGetNextFileDecoder();
             if (decoder == null) {
-                log.error("No available file to read, will try again later");
+                log.info("No available file to read, will try again later");
                 waitForThrottle();
                 return null;
             }
@@ -174,7 +174,7 @@ public class StreamSourceTask extends SourceTask {
                     .offset(Collections.singletonMap(FILENAME_FIELD, filename));
             log.debug("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
             Optional<Long> lastReadOffset = getLastReadOffset(state);
-            Optional<Float> lastReadProgress = getLastReadProgress(state);
+            Optional<Double> lastReadProgress = getLastReadProgress(state);
 
             try {
                 if (isEofByOffset(lastReadOffset, filename) || isEofByProgress(lastReadProgress)) {
@@ -203,7 +203,7 @@ public class StreamSourceTask extends SourceTask {
         Map<String, Object> state = context.offsetStorageReader()
                 .offset(Collections.singletonMap(FILENAME_FIELD, filename));
         Optional<Long> lastReadOffset = getLastReadOffset(state);
-        Optional<Float> lastReadProgress = getLastReadProgress(state);
+        Optional<Double> lastReadProgress = getLastReadProgress(state);
         return isEofByOffset(lastReadOffset, filename) || isEofByProgress(lastReadProgress);
     }
 
@@ -212,7 +212,7 @@ public class StreamSourceTask extends SourceTask {
         return lastReadOffset.isPresent() && lastReadOffset.get() >= endpoint.getFileSize(filename);
     }
 
-    private boolean isEofByProgress(Optional<Float> lastReadProgress) {
+    private boolean isEofByProgress(Optional<Double> lastReadProgress) {
         return lastReadProgress.isPresent() && lastReadProgress.get() >= 1.0;
     }
 
@@ -230,15 +230,15 @@ public class StreamSourceTask extends SourceTask {
         return result;
     }
 
-    private Optional<Float> getLastReadProgress(Map<String, Object> offset) {
-        Optional<Float> result = Optional.empty();
+    private Optional<Double> getLastReadProgress(Map<String, Object> offset) {
+        Optional<Double> result = Optional.empty();
         if (offset != null) {
             Object lastRecordedProgress = offset.get(PROGRESS_FIELD);
-            if (lastRecordedProgress != null && !(lastRecordedProgress instanceof Long))
-                throw new ConnectException("Offset progress is the incorrect type");
+            if (lastRecordedProgress != null && !(lastRecordedProgress instanceof Double))
+                throw new ConnectException("Offset progress is the incorrect type: " + lastRecordedProgress.getClass().getName());
             if (lastRecordedProgress != null) {
                 log.debug("Found previous offset progress: {}", lastRecordedProgress);
-                result = Optional.of((Float) lastRecordedProgress);
+                result = Optional.of((Double) lastRecordedProgress);
             }
         }
         return result;
@@ -293,7 +293,7 @@ public class StreamSourceTask extends SourceTask {
         return Collections.singletonMap(FILENAME_FIELD, filename);
     }
 
-    private Map<String, Object> offsetValue(Long pos, Float progress) {
+    private Map<String, Object> offsetValue(Long pos, Double progress) {
         Map<String, Object> result = new HashMap<>();
         result.put(POSITION_FIELD, pos);
         result.put(PROGRESS_FIELD, progress);

@@ -44,13 +44,13 @@ public class StreamParquetReader implements Closeable {
         }
     }
 
-    public Float getProgress() throws IOException {
+    public Double getProgress() throws IOException {
         try {
             if (reader != null) {
-                return reader.getProgress();
+                return (double) reader.getProgress();
             } else {
                 initReader();
-                return reader == null ? null : reader.getProgress();
+                return reader == null ? null : (double) reader.getProgress();
             }
         } catch (InterruptedException e) {
             throw new IOException(e);

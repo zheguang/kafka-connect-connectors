@@ -168,7 +168,7 @@ public class ParquetDecoderTest {
         assertNotNull(record.getStreamProgress());
         if (isLastRecord) {
             // last record
-            assertEquals(record.getStreamProgress(), Float.valueOf(1));
+            assertEquals(record.getStreamProgress(), Double.valueOf(1));
         } else {
             assertTrue(0 < record.getStreamProgress() && record.getStreamProgress() < 1.0);
         }

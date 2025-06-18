@@ -6,10 +6,10 @@ public class Record<T> {
 
     private final T record;
     private final Long streamOffset;
-    private final Float streamProgress;
+    private final Double streamProgress;
     private final Schema schema;
 
-    public Record(T record, Long streamOffset, Float streamProgress, Schema schema) {
+    public Record(T record, Long streamOffset, Double streamProgress, Schema schema) {
         assert streamOffset == null || streamOffset >= 0 : "expect nonnegative stream offset if nonnull";
         assert streamProgress == null || streamProgress <= 1 : "expect nonnegative stream offset if nonnull";
         this.record = record;
@@ -31,7 +31,7 @@ public class Record<T> {
         return streamOffset;
     }
 
-    public Float getStreamProgress() {
+    public Double getStreamProgress() {
         return streamProgress;
     }
 
