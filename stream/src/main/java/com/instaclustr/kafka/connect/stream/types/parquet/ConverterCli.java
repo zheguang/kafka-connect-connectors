@@ -12,7 +12,6 @@ import org.apache.parquet.io.SeekableInputStream;
 
 public class ConverterCli {
     public static void main(String[] args) throws IOException {
-        // File file = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
 	File file = new File(args[0]);
         SeekableInputStream fileStream = new LocalInputFile(file.toPath()).newStream();
 
