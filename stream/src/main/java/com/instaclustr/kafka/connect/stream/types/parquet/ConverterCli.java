@@ -10,9 +10,10 @@ import org.apache.parquet.hadoop.StreamParquetReader;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.SeekableInputStream;
 
-public class App {
+public class ConverterCli {
     public static void main(String[] args) throws IOException {
-        File file = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
+        // File file = new File("/Users/guang/Play/KafkaConnect/kafka-connect-converters/kafka-parquet/src/test/resources/test.parquet");
+	File file = new File(args[0]);
         SeekableInputStream fileStream = new LocalInputFile(file.toPath()).newStream();
 
         StreamParquetReader reader = new StreamParquetReader(new StreamInputFile(() -> fileStream, file.length()));
