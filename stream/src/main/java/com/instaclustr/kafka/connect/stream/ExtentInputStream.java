@@ -115,18 +115,6 @@ public class ExtentInputStream extends RandomAccessInputStream {
         }
     }
 
-    // -1 if no end of extent
-    /*private int extentRead() throws IOException {
-        if (expectEndOfExtent()) {
-            return -1;
-        } else {
-            assert extentPosition < extentSize;
-            int result = in.read();
-            assert result != -1;
-            return result;
-        }
-    }*/
-
     private boolean expectEndOfExtent() {
         return extentPosition == extentSize;
     }

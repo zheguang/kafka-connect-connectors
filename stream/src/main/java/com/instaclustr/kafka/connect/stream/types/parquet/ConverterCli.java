@@ -1,14 +1,14 @@
 package com.instaclustr.kafka.connect.stream.types.parquet;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.parquet.example.data.simple.SimpleGroup;
 import org.apache.parquet.hadoop.StreamParquetReader;
 import org.apache.parquet.io.LocalInputFile;
 import org.apache.parquet.io.SeekableInputStream;
+
+import java.io.File;
+import java.io.IOException;
 
 public class ConverterCli {
     public static void main(String[] args) throws IOException {

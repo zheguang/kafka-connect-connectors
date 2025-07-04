@@ -1,13 +1,8 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
 import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
-import com.instaclustr.kafka.connect.stream.StreamSourceTask;
 import com.instaclustr.kafka.connect.stream.types.parquet.ParquetKafkaDataConverter;
 import com.instaclustr.kafka.connect.stream.types.parquet.StreamInputFile;
-import com.instaclustr.kafka.connect.stream.types.parquet.ParquetKafkaDataConverter;
-import java.io.IOException;
-import java.util.List;
-import java.util.ArrayList;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.parquet.example.data.simple.SimpleGroup;
 import org.apache.parquet.hadoop.StreamParquetReader;
@@ -15,6 +10,10 @@ import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ParquetDecoder implements Decoder<Struct> {
     private static final Logger log = LoggerFactory.getLogger(ParquetDecoder.class);

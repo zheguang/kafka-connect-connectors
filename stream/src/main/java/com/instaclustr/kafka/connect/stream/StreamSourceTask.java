@@ -1,7 +1,6 @@
 package com.instaclustr.kafka.connect.stream;
 
 import com.instaclustr.kafka.connect.stream.codec.Decoder;
-import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import com.instaclustr.kafka.connect.stream.codec.Record;
 import org.apache.kafka.common.config.AbstractConfig;
@@ -12,7 +11,7 @@ import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.*;
 
 public class StreamSourceTask extends SourceTask {
