@@ -51,26 +51,6 @@ public class ExtentInputStream extends RandomAccessInputStream {
                 0, 0, 0, 0);
     }
 
-    /*@Override
-    public int read() throws IOException {
-        if (! isExtentOpen()) {
-            if (! hasExtentAt(extentStartOffset)) {
-                return -1;
-            }
-            openExtent();
-        }
-        int result;
-        while ((result = extentRead()) == -1 && hasNextExtent()) {
-            log.debug("Setting next extent");
-            setNextExtent();
-        }
-        if (result != -1) {
-            extentPosition++;
-            fileOffset++;
-        }
-        return result;
-    }*/
-
     @Override
     public int read() throws IOException {
         byte[] b = new byte[1];
