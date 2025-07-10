@@ -3,6 +3,7 @@ package com.instaclustr.kafka.connect.stream.codec;
 import com.instaclustr.kafka.connect.stream.Endpoint;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.source.ExactlyOnceSupport;
 
 import java.io.IOException;
 import java.util.Map;
@@ -16,8 +17,7 @@ public class Decoders {
             .define(DECODER_TYPE, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Decoder type");
 
     public static Decoder<?> of(Endpoint endpoint, String filename, Map<String, String> config) throws IOException {
-        AbstractConfig validConfig = new AbstractConfig(CONFIG_DEF, config);
-        String decoderType = validConfig.getString(DECODER_TYPE).trim().toLowerCase();
+        String decoderType = decoderTypeOf(config);
         switch (decoderType) {
             case PARQUET:
                 return ParquetDecoder.from(endpoint.openRandomAccessInputStream(filename));
@@ -26,5 +26,22 @@ public class Decoders {
             default:
                 throw new UnsupportedOperationException(decoderType);
         }
+    }
+
+    public static ExactlyOnceSupport exactlyOnceSupportOf(Map<String, String> config) {
+        String decoderType = decoderTypeOf(config);
+        switch (decoderType) {
+            case PARQUET:
+                return ExactlyOnceSupport.UNSUPPORTED;
+            case TEXT:
+                return ExactlyOnceSupport.SUPPORTED;
+            default:
+                throw new UnsupportedOperationException(decoderType);
+        }
+    }
+
+    private static String decoderTypeOf(Map<String, String> config) {
+        AbstractConfig validConfig = new AbstractConfig(CONFIG_DEF, config);
+        return validConfig.getString(DECODER_TYPE).trim().toLowerCase();
     }
 }

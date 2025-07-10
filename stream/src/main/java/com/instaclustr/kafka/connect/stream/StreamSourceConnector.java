@@ -1,5 +1,7 @@
 package com.instaclustr.kafka.connect.stream;
 
+import com.instaclustr.kafka.connect.stream.codec.CodecError;
+import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
@@ -118,7 +120,7 @@ public class StreamSourceConnector extends SourceConnector {
 
     @Override
     public ExactlyOnceSupport exactlyOnceSupport(Map<String, String> props) {
-        return ExactlyOnceSupport.SUPPORTED;
+        return Decoders.exactlyOnceSupportOf(props);
     }
 
     @Override
