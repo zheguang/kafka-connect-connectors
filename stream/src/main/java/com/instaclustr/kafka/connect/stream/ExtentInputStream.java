@@ -4,7 +4,6 @@ import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 

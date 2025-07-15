@@ -12,7 +12,7 @@ import java.io.IOException;
 
 public class ConverterCli {
     public static void main(String[] args) throws IOException {
-	File file = new File(args[0]);
+        File file = new File(args[0]);
         SeekableInputStream fileStream = new LocalInputFile(file.toPath()).newStream();
 
         StreamParquetReader reader = new StreamParquetReader(new StreamInputFile(() -> fileStream, file.length()));

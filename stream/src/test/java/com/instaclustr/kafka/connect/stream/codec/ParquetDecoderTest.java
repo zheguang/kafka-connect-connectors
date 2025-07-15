@@ -1,20 +1,13 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
-import com.instaclustr.kafka.connect.stream.codec.Record;
 import com.instaclustr.kafka.connect.stream.endpoint.LocalFile;
 import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
-import com.instaclustr.kafka.connect.stream.types.parquet.ParquetKafkaDataConverter;
-import com.instaclustr.kafka.connect.stream.types.parquet.StreamInputFile;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.hadoop.fs.Path;
-import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.parquet.column.ParquetProperties;
-import org.apache.parquet.example.data.simple.SimpleGroup;
 import org.apache.parquet.filter2.recordlevel.PhoneBookWriter;
-import org.apache.parquet.hadoop.StreamParquetReader;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
-import org.apache.parquet.io.LocalInputFile;
-import org.apache.parquet.io.SeekableInputStream;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -29,7 +22,8 @@ import static org.testng.Assert.*;
 public class ParquetDecoderTest {
     
     private ParquetDecoder decoder;
-    private File tempFile;
+    private File uncompressedFile;
+    private File compressedFile;
 
     private static final int NUM_USERS = 1000;
     private static final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(NUM_USERS));
@@ -61,7 +55,7 @@ public class ParquetDecoderTest {
         return users;
     }
 
-    public static void writePhoneBookToFile(Path file, ParquetProperties.WriterVersion parquetVersion)
+    public static void writePhoneBookToFile(Path file, ParquetProperties.WriterVersion parquetVersion, CompressionCodecName compressionCodec)
             throws IOException {
             int pageSize = DATA.size() / 10; // Ensure that several pages will be created
             int rowGroupSize = pageSize * 6 * 5; // Ensure that there are more row-groups created
@@ -71,14 +65,17 @@ public class ParquetDecoderTest {
                     .withWriteMode(OVERWRITE)
                     .withRowGroupSize(rowGroupSize)
                     .withPageSize(pageSize)
-                    .withWriterVersion(parquetVersion),
+                    .withWriterVersion(parquetVersion)
+                    .withCompressionCodec(compressionCodec),
                     DATA);
     }
 
     @BeforeMethod
     public void setup() throws IOException {
-        tempFile = File.createTempFile("ParquetDecoderTest-tempFile", ".parquet");
-        writePhoneBookToFile(new Path(tempFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_2_0);
+        uncompressedFile = File.createTempFile("ParquetDecoderTest-uncompressedFile", ".parquet");
+        writePhoneBookToFile(new Path(uncompressedFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.UNCOMPRESSED);
+        compressedFile = File.createTempFile("ParquetDecoderTest-compressedFile", ".parquet");
+        writePhoneBookToFile(new Path(compressedFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.SNAPPY);
 
         if (decoder != null) {
             decoder.close();
@@ -88,7 +85,8 @@ public class ParquetDecoderTest {
 
     @AfterMethod
     public void teardown() throws IOException {
-        Files.deleteIfExists(tempFile.toPath());
+        Files.deleteIfExists(uncompressedFile.toPath());
+        Files.deleteIfExists(compressedFile.toPath());
         if (decoder != null) {
             decoder.close();
         }
@@ -96,16 +94,18 @@ public class ParquetDecoderTest {
 
     @Test
     public void decodeOneByOne() throws IOException {
-        LocalFile localFile = new LocalFile();
-        RandomAccessInputStream rais = localFile.openRandomAccessInputStream(tempFile.getAbsolutePath());
-        decoder = ParquetDecoder.from(rais);
+        for (File file : List.of(uncompressedFile, compressedFile)) {
+            LocalFile localFile = new LocalFile();
+            RandomAccessInputStream rais = localFile.openRandomAccessInputStream(file.getAbsolutePath());
+            decoder = ParquetDecoder.from(rais);
 
-        for (PhoneBookWriter.User expected : DATA) {
-            List<Record<Struct>> batch = decoder.next(1);
-            assertEquals(batch.size(), 1);
-            Struct actual = batch.get(0).getRecord();
-            checkUser(expected, actual);
-            checkRecordMetadata(batch.get(0), expected.equals(DATA.get(DATA.size() - 1)));
+            for (PhoneBookWriter.User expected : DATA) {
+                List<Record<Struct>> batch = decoder.next(1);
+                assertEquals(batch.size(), 1);
+                Struct actual = batch.get(0).getRecord();
+                checkUser(expected, actual);
+                checkRecordMetadata(batch.get(0), expected.equals(DATA.get(DATA.size() - 1)));
+            }
         }
     }
 
@@ -140,7 +140,7 @@ public class ParquetDecoderTest {
     @Test
     public void decodeBatch() throws IOException {
         LocalFile localFile = new LocalFile();
-        RandomAccessInputStream rais = localFile.openRandomAccessInputStream(tempFile.getAbsolutePath());
+        RandomAccessInputStream rais = localFile.openRandomAccessInputStream(uncompressedFile.getAbsolutePath());
         decoder = ParquetDecoder.from(rais);
 
         int batchSize = 257;
@@ -176,9 +176,8 @@ public class ParquetDecoderTest {
     
     @Test
     public void writerVersion1() throws IOException {
-        teardown(); // set up tempFile again for parquet version 1
-        tempFile = File.createTempFile("ParquetDecoderTest-tempFile-v1", ".parquet");
-        writePhoneBookToFile(new Path(tempFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_1_0);
+        compressedFile = File.createTempFile("ParquetDecoderTest-compressedFile-v1", ".parquet");
+        writePhoneBookToFile(new Path(uncompressedFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.ZSTD);
         decodeBatch();
     }
 }

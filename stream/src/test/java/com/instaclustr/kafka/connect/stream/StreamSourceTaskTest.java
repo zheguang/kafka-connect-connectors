@@ -10,6 +10,7 @@ import org.apache.kafka.connect.source.SourceTaskContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.filter2.recordlevel.PhoneBookWriter;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -325,7 +326,7 @@ public class StreamSourceTaskTest {
         final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(NUM_USERS));
         Files.deleteIfExists(tempFile.toPath());
         tempFile = File.createTempFile("StreamSourceTaskTest-tempFile", ".parquet");
-        writePhoneBookToFile(new Path(tempFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_2_0);
+        writePhoneBookToFile(new Path(tempFile.getAbsolutePath()), ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.GZIP);
 
         config.put(Decoders.DECODER_TYPE, Decoders.PARQUET);
         config.put(StreamSourceTask.TASK_FILES, tempFile.getAbsolutePath());
