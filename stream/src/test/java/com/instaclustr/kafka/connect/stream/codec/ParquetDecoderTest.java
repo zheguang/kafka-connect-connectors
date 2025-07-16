@@ -1,5 +1,6 @@
 package com.instaclustr.kafka.connect.stream.codec;
 
+import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
 import com.instaclustr.kafka.connect.stream.endpoint.LocalFile;
 import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
 import org.apache.kafka.connect.data.Struct;
@@ -27,6 +28,8 @@ public class ParquetDecoderTest {
 
     private static final int NUM_USERS = 1000;
     private static final List<PhoneBookWriter.User> DATA = Collections.unmodifiableList(makeUsers(NUM_USERS));
+    private static final Map<String, String> CONFIG = Map.of(ExtentBased.EXTENT_STRIDE, String.valueOf(16l));
+    private static LocalFile LOCAL_FILE = LocalFile.of(CONFIG);
 
     public static List<PhoneBookWriter.User> makeUsers(int rowCount) {
         List<PhoneBookWriter.User> users = new ArrayList<>();
@@ -95,8 +98,7 @@ public class ParquetDecoderTest {
     @Test
     public void decodeOneByOne() throws IOException {
         for (File file : List.of(uncompressedFile, compressedFile)) {
-            LocalFile localFile = new LocalFile();
-            RandomAccessInputStream rais = localFile.openRandomAccessInputStream(file.getAbsolutePath());
+            RandomAccessInputStream rais = LOCAL_FILE.openRandomAccessInputStream(file.getAbsolutePath());
             decoder = ParquetDecoder.from(rais);
 
             for (PhoneBookWriter.User expected : DATA) {
@@ -139,8 +141,7 @@ public class ParquetDecoderTest {
 
     @Test
     public void decodeBatch() throws IOException {
-        LocalFile localFile = new LocalFile();
-        RandomAccessInputStream rais = localFile.openRandomAccessInputStream(uncompressedFile.getAbsolutePath());
+        RandomAccessInputStream rais = LOCAL_FILE.openRandomAccessInputStream(uncompressedFile.getAbsolutePath());
         decoder = ParquetDecoder.from(rais);
 
         int batchSize = 257;

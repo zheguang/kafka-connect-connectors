@@ -48,7 +48,7 @@ public class ExtentInputStreamTest {
 
             long fileSize = 0;
 
-            stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint);
+            stream = ExtentInputStream.of(FILE_NAME, fileSize, endpoint, ExtentInputStream.DEFAULT_EXTENT_STRIDE);
 
             assertEquals(stream.getFileOffset(), 0);
             assertEof();

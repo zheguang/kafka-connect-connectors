@@ -41,10 +41,6 @@ public class ExtentInputStream extends RandomAccessInputStream {
         this.fileOffset = fileOffset;
     }
 
-    public static ExtentInputStream of(String fileName, long fileSize, ExtentBased endpoint) {
-        return of(fileName, fileSize, endpoint, DEFAULT_EXTENT_STRIDE);
-    }
-
     public static ExtentInputStream of(String fileName, long fileSize, ExtentBased endpoint, long maxExtentSize) {
         return new ExtentInputStream(null, fileName, fileSize, endpoint, maxExtentSize,
                 0, 0, 0, 0);

@@ -3,6 +3,7 @@ package com.instaclustr.kafka.connect.stream.endpoint;
 import com.instaclustr.kafka.connect.stream.Endpoint;
 import com.instaclustr.kafka.connect.stream.ExtentInputStream;
 import com.instaclustr.kafka.connect.stream.RandomAccessInputStream;
+import org.apache.kafka.common.config.AbstractConfig;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,9 +11,20 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class LocalFile implements Endpoint, ExtentBased {
+    public static LocalFile of(Map<String, String> props) {
+        AbstractConfig extentConf = new AbstractConfig(ExtentBased.CONFIG_DEF, props);
+        return new LocalFile(extentConf.getLong(ExtentBased.EXTENT_STRIDE));
+    }
+    private final long extentStride;
+
+    public LocalFile(long extentStride) {
+        this.extentStride = extentStride;
+    }
+
     @Override
     public InputStream openInputStream(final String streamName) throws IOException {
         return Files.newInputStream(Path.of(streamName));
@@ -31,7 +43,7 @@ public class LocalFile implements Endpoint, ExtentBased {
     @Override
     public RandomAccessInputStream openRandomAccessInputStream(final String streamName) throws IOException {
         File f = new File(streamName);
-        return ExtentInputStream.of(streamName, f.length(), this);
+        return ExtentInputStream.of(streamName, f.length(), this, extentStride);
     }
 
     @Override

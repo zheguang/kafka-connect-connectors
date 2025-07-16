@@ -13,13 +13,14 @@ import java.util.Map;
 
 public class S3BucketStorageGrid extends S3Bucket implements AccessKeyBased {
 
-    private S3BucketStorageGrid(TransferManager transferManager, String bucketName) {
-        super(transferManager, bucketName);
+    private S3BucketStorageGrid(TransferManager transferManager, String bucketName, long extentStride) {
+        super(transferManager, bucketName, extentStride);
     }
 
     public static S3BucketStorageGrid of(Map<String, String> providedConf) {
         AbstractConfig s3BucketConf = new AbstractConfig(S3Bucket.CONFIG_DEF, providedConf);
         AbstractConfig accessKeyConf = new AbstractConfig(AccessKeyBased.CONFIG_DEF, providedConf);
+        AbstractConfig extentConf = new AbstractConfig(ExtentBased.CONFIG_DEF, providedConf);
 
         AWSStaticCredentialsProvider awsStaticCredentialsProvider = new AWSStaticCredentialsProvider(
                 new BasicAWSCredentials(accessKeyConf.getString(ACCESS_KEY_ID), accessKeyConf.getPassword(ACCESS_KEY).value())
@@ -46,6 +47,7 @@ public class S3BucketStorageGrid extends S3Bucket implements AccessKeyBased {
                         clientBuilder.build()
                 );
 
-        return new S3BucketStorageGrid(transferBuilder.build(), s3BucketConf.getString(BUCKET_NAME));
+        return new S3BucketStorageGrid(
+                transferBuilder.build(), s3BucketConf.getString(BUCKET_NAME), extentConf.getLong(EXTENT_STRIDE));
     }
 }

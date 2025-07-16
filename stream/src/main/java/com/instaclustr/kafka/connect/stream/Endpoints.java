@@ -25,7 +25,7 @@ public class Endpoints {
             case AWS_S3:
                 return S3BucketAws.of(props);
             case LOCAL_FILE:
-                return new LocalFile();
+                return LocalFile.of(props);
             case ONTAP_S3:
                 return S3BucketOntap.of(props);
             case STORAGEGRID_S3:

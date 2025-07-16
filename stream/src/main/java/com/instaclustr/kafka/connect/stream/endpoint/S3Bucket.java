@@ -30,10 +30,12 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
 
     private final TransferManager transferManager;
     private final String bucketName;
+    private final long extentStride;
 
-    public S3Bucket(TransferManager transferManager, String bucketName) {
+    public S3Bucket(TransferManager transferManager, String bucketName, long extentStride) {
         this.transferManager = transferManager;
         this.bucketName = bucketName;
+        this.extentStride = extentStride;
     }
 
     @Override
@@ -57,7 +59,7 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
     @Override
     public RandomAccessInputStream openRandomAccessInputStream(String objectKey) throws IOException {
         try {
-            return ExtentInputStream.of(objectKey, getFileSize(objectKey), this);
+            return ExtentInputStream.of(objectKey, getFileSize(objectKey), this, extentStride);
         } catch (SdkClientException e) {
             throw new IOException (e);
         }

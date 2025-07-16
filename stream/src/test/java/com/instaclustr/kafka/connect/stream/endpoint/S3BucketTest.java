@@ -5,6 +5,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.TransferManager;
+import com.instaclustr.kafka.connect.stream.ExtentInputStream;
 import org.mockito.Mockito;
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -24,7 +25,7 @@ public class S3BucketTest {
         AmazonS3 s3Client = Mockito.mock(AmazonS3.class);
         TransferManager tm = mock(TransferManager.class);
         when(tm.getAmazonS3Client()).thenReturn(s3Client);
-        S3Bucket s3Bucket = new S3BucketAws(tm, "testBucket");
+        S3Bucket s3Bucket = new S3BucketAws(tm, "testBucket", ExtentInputStream.DEFAULT_EXTENT_STRIDE);
 
         List<ObjectListing> pages = Stream.generate(() -> mock(ObjectListing.class)).limit(3).collect(Collectors.toList());
         for (int i = 0; i < pages.size(); i++) {
