@@ -3,6 +3,7 @@ package com.instaclustr.kafka.connect.stream;
 import com.instaclustr.kafka.connect.stream.codec.CodecError;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -29,6 +30,7 @@ public class StreamSourceConnector extends SourceConnector {
     public static final String FILES_CONFIG = "files";
 
     public static final long DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES = 60;
+    public static final String ERROR_FILES_XOR_DIRECTORY = "Should define either " + FILES_CONFIG + " xor " + DIRECTORY_CONFIG;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
@@ -75,9 +77,13 @@ public class StreamSourceConnector extends SourceConnector {
     }
 
     private void mustDefineDirectoryXorFiles(AbstractConfig config) {
-        if (! (config.getString(DIRECTORY_CONFIG) == null ^ config.getList(FILES_CONFIG) == null)) {
+        if (! hasDefinedDirectoryXorFiles(config)) {
             throw new ConnectException("Files or directory should be configured exclusively");
         }
+    }
+
+    private boolean hasDefinedDirectoryXorFiles(AbstractConfig config) {
+       return config.getString(DIRECTORY_CONFIG) == null ^ config.getList(FILES_CONFIG) == null;
     }
 
     @Override
@@ -111,6 +117,21 @@ public class StreamSourceConnector extends SourceConnector {
     @Override
     public ConfigDef config() {
         return CONFIG_DEF;
+    }
+
+    @Override
+    public Config validate(Map<String, String> connectorConfigs) {
+        Config superValidated = super.validate(connectorConfigs);
+
+        AbstractConfig config = new AbstractConfig(CONFIG_DEF, connectorConfigs);
+        if (! hasDefinedDirectoryXorFiles(config)) {
+            superValidated.configValues()
+                    .stream()
+                    .filter(cv -> cv.name().equals(FILES_CONFIG) || cv.name().equals(DIRECTORY_CONFIG))
+                    .forEach(cv -> cv.addErrorMessage(ERROR_FILES_XOR_DIRECTORY));
+        }
+
+        return superValidated;
     }
 
     @Override

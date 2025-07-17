@@ -1,11 +1,13 @@
 package com.instaclustr.kafka.connect.stream;
 
+import static com.instaclustr.kafka.connect.stream.StreamSourceConnector.*;
 import static java.lang.Thread.sleep;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,7 +19,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.apache.kafka.common.config.Config;
+import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceConnectorContext;
 import org.mockito.Mockito;
@@ -51,7 +56,44 @@ public class StreamSourceConnectorTest {
     public void tearDown() {
         connector.stop();
     }
-    
+
+    @Test
+    public void defineDirectoryXorFiles() {
+        // null files and directory -- error
+        var result = connector.validate(config);
+        assertErrorWith(result, FILES_CONFIG, ERROR_FILES_XOR_DIRECTORY);
+        assertErrorWith(result, DIRECTORY_CONFIG, ERROR_FILES_XOR_DIRECTORY);
+
+        // only directory -- okay
+        config.put(StreamSourceConnector.DIRECTORY_CONFIG, dir.getAbsolutePath());
+        result = connector.validate(config);
+        assertNoError(result, FILES_CONFIG);
+        assertNoError(result, DIRECTORY_CONFIG);
+
+        // both files and directory -- error
+        config.put(FILES_CONFIG, String.join(",", files));
+        result = connector.validate(config);
+        assertErrorWith(result, FILES_CONFIG, ERROR_FILES_XOR_DIRECTORY);
+        assertErrorWith(result, DIRECTORY_CONFIG, ERROR_FILES_XOR_DIRECTORY);
+
+        // only files -- okey
+        config.remove(DIRECTORY_CONFIG);
+        result = connector.validate(config);
+        assertNoError(result, FILES_CONFIG);
+        assertNoError(result, DIRECTORY_CONFIG);
+    }
+
+    private static void assertErrorWith(final Config result, final String configName, final String errorKeywords) {
+        List<String> errors = result.configValues().stream().filter(cv -> cv.name().equals(configName)).flatMap(cv -> cv.errorMessages().stream()).collect(Collectors.toList());
+        assertEquals(errors.size(), 1);
+        assertEquals(errors.get(0), errorKeywords);
+    }
+
+    private static void assertNoError(final Config result, final String configName) {
+        List<String> errors = result.configValues().stream().filter(cv -> cv.name().equals(configName)).flatMap(cv -> cv.errorMessages().stream()).collect(Collectors.toList());
+        assertTrue(errors.isEmpty());
+    }
+
     @Test
     public void testDirectory() throws IOException {
         config.put(StreamSourceConnector.DIRECTORY_CONFIG, dir.getAbsolutePath());
@@ -62,7 +104,7 @@ public class StreamSourceConnectorTest {
     
     @Test
     public void testFiles() throws IOException {
-        config.put(StreamSourceConnector.FILES_CONFIG, String.join(",", files));
+        config.put(FILES_CONFIG, String.join(",", files));
         connector.start(config);
 
         assertEquals(Set.copyOf(connector.getFiles()), files);
@@ -71,7 +113,7 @@ public class StreamSourceConnectorTest {
     @Test(expectedExceptions = {ConnectException.class})
     public void shouldNotDefineBothDirectoryAndFiles() throws IOException {
         config.put(StreamSourceConnector.DIRECTORY_CONFIG, dir.getAbsolutePath());
-        config.put(StreamSourceConnector.FILES_CONFIG, String.join(",", files));
+        config.put(FILES_CONFIG, String.join(",", files));
         connector.start(config);
     }
 

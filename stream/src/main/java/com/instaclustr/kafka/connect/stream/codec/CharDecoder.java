@@ -146,12 +146,6 @@ public class CharDecoder implements Decoder<String> {
             }
         }
 
-        /*if (until == -1 && endOfStream) {
-            // end of stream, but last line is not terminated with linefeed
-            until = offset;
-            newStart = offset; // not +1 to avoid pointing at out-of-bound location
-        }*/
-
         if (until != -1) {
             String result = new String(buffer, 0, until); // convert to UTF16
             int bytesUntilNewStart = numBytesOf(charset, buffer, 0, newStart);
