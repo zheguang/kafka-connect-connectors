@@ -113,12 +113,12 @@ public class ParquetDecoderTest {
 
     public static void checkUser(final PhoneBookWriter.User expected, final Struct actual) {
         assertEquals(actual.getInt64("id"), Long.valueOf(expected.getId()));
-        assertEquals(new String(actual.getBytes("name")), expected.getName());
+        assertEquals(actual.getString("name"), expected.getName());
         assertTrue(actual.get("phoneNumbers") instanceof Struct);
         List<Struct> phone = actual.getStruct("phoneNumbers").<Struct>getArray("phone");
         assertEquals(phone.size(), expected.getPhoneNumbers().size());
         assertEquals(phone.get(0).get("number"), expected.getPhoneNumbers().get(0).getNumber());
-        assertEquals(new String(phone.get(0).getBytes("kind")), expected.getPhoneNumbers().get(0).getKind());
+        assertEquals(phone.get(0).getString("kind"), expected.getPhoneNumbers().get(0).getKind());
 
         if (expected.getLocation() == null) {
             assertNull(actual.getStruct("location"));

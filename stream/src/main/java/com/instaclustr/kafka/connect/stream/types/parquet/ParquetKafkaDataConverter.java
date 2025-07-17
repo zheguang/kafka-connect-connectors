@@ -5,6 +5,7 @@ import org.apache.kafka.connect.data.Struct;
 import org.apache.parquet.example.data.simple.SimpleGroup;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -96,6 +97,16 @@ public class ParquetKafkaDataConverter {
             assert field instanceof PrimitiveType : "Unexpected Parquet field type: " + field.getClass();
             switch (((PrimitiveType) field).getPrimitiveTypeName()) {
                 case BINARY:
+                    LogicalTypeAnnotation logicalType = field.getLogicalTypeAnnotation();
+                    if (LogicalTypeAnnotation.stringType().equals(logicalType)) {
+                        for (int r = 0; r < reps; r++) {
+                            Object value = group.getObject(fieldIndex, r);
+                            assert value instanceof Binary : "Unexpected Parquet value type for UTF-8 String: " + value.getClass();
+                            values.add(((Binary) value).toStringUsingUTF8());
+                        }
+                        break;
+                    }
+                    // Binary default as fall through to bytes
                 case INT96:
                 case FIXED_LEN_BYTE_ARRAY:
                     for (int r = 0; r < reps; r++) {
@@ -133,6 +144,14 @@ public class ParquetKafkaDataConverter {
             assert field instanceof PrimitiveType : "Unexpected Parquet field type: " + field.getClass();
             switch (((PrimitiveType) field).getPrimitiveTypeName()) {
                 case BINARY:
+                    LogicalTypeAnnotation logicalType = field.getLogicalTypeAnnotation();
+                    if (LogicalTypeAnnotation.stringType().equals(logicalType)) {
+                        assert value instanceof Binary
+                                : "Unexpected Parquet value type for UTF-8 String: " + value.getClass();
+                        kafkaValue = ((Binary) value).toStringUsingUTF8();
+                        break;
+                    }
+                    // Binary default as fall through to bytes
                 case INT96:
                 case FIXED_LEN_BYTE_ARRAY:
                     assert value instanceof Binary : "Unexpected Parquet value type for binary, int96 and fixed-length byte array: " + value.getClass();

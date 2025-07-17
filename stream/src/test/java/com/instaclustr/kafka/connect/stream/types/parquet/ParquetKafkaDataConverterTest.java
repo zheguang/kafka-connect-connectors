@@ -1,14 +1,19 @@
 package com.instaclustr.kafka.connect.stream.types.parquet;
 
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.parquet.example.Paper;
 import org.apache.parquet.example.data.simple.SimpleGroup;
+import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.OriginalType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.testng.annotations.Test;
 
 import java.util.List;
 
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
+import static org.apache.parquet.schema.Type.Repetition.REQUIRED;
 import static org.testng.Assert.*;
 
 public class ParquetKafkaDataConverterTest {
@@ -160,5 +165,22 @@ public class ParquetKafkaDataConverterTest {
 
         // Document.Name[0].Language[1].Country
         assertNull(language.get(1).getBytes("Country"));
+    }
+
+    @Test
+    public void utf8String() {
+        MessageType schema = new MessageType(
+                "Document",
+                new PrimitiveType(REQUIRED, BINARY, "DocName", OriginalType.UTF8));
+        SimpleGroup group = new SimpleGroup(schema);
+        group.add("DocName", "myString");
+        
+        ParquetKafkaDataConverter converter = ParquetKafkaDataConverter.newConverter();
+        Struct result = converter.convert(group);
+
+        // Document.DocName
+        Object actual = result.get("DocName");
+        assertTrue(actual instanceof String);
+        assertEquals(actual, group.getString("DocName", 0));
     }
 }

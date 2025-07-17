@@ -10,10 +10,12 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.TypeConverter;
+import org.apache.parquet.schema.LogicalTypeAnnotation.StringLogicalTypeAnnotation;
 
 public class ParquetKafkaTypeConverter implements TypeConverter<Schema> {
 
@@ -26,6 +28,10 @@ public class ParquetKafkaTypeConverter implements TypeConverter<Schema> {
         PrimitiveTypeName.DOUBLE,               Schema.Type.FLOAT64,
         PrimitiveTypeName.INT96,                Schema.Type.BYTES,
         PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY, Schema.Type.BYTES
+    );
+
+    private static final Map<LogicalTypeAnnotation, Schema.Type> LOGICAL_TYPE = Map.of(
+        LogicalTypeAnnotation.stringType(), Schema.Type.STRING
     );
 
     @Override
@@ -50,7 +56,15 @@ public class ParquetKafkaTypeConverter implements TypeConverter<Schema> {
 
     private static SchemaBuilder schemaBuilderOf(PrimitiveType primitiveType) {
         PrimitiveTypeName parquetType = primitiveType.getPrimitiveTypeName();
-        Schema.Type kafkaType = Objects.requireNonNull(P2K_PRIMITIVE_TYPE.get(parquetType), "Type mapping is undefined for Parquet: " + parquetType);
+        LogicalTypeAnnotation logicalType = primitiveType.getLogicalTypeAnnotation();
+        Schema.Type kafkaType;
+        if (logicalType != null && LOGICAL_TYPE.containsKey(logicalType)) {
+            kafkaType = Objects.requireNonNull(LOGICAL_TYPE.get(logicalType),
+                    "Logical type mapping is undefined for Parquet: " + logicalType);
+        } else {
+            kafkaType = Objects.requireNonNull(P2K_PRIMITIVE_TYPE.get(parquetType),
+                    "Type mapping is undefined for Parquet: " + parquetType);
+        }
         return SchemaBuilder.type(kafkaType).name(primitiveType.getName());
     }
 
