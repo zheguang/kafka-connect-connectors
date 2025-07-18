@@ -139,15 +139,14 @@ public class StreamSourceTask extends SourceTask {
 
         try {
             String filename = filenames.element();
-            List<? extends Record<?>> charRecords = decoder.next(batchSize);
-            if (charRecords == null) {
+            List<? extends Record<?>> batch = decoder.next(batchSize);
+            if (batch == null) {
                 numTries++;
                 log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);
                 if (numTries > maxReadRetries) { // 1 + retries = total number of tries
                     log.debug("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
                     closeForNextFile();
-                }
-                if (isEof(filename)) {
+                } else if (isEof(filename)) {
                     log.debug("Continual reads reached EOF: {}", filename);
                     closeForNextFile();
                 }
@@ -155,14 +154,14 @@ public class StreamSourceTask extends SourceTask {
                 return null;
             }
 
-            if (charRecords.isEmpty()) {
+            if (batch.isEmpty()) {
                 log.debug("Read some new bytes from stream, but not enough yet to decode any record");
                 // Not counting towards a retry
                 return null;
             }
 
             List<SourceRecord> records = new ArrayList<>();
-            for (var charRecord : charRecords) {
+            for (var charRecord : batch) {
                 records.add(new SourceRecord(
                             offsetKey(filename), 
                             offsetValue(charRecord.getStreamOffset(), charRecord.getStreamProgress()), 
