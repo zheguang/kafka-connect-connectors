@@ -37,9 +37,9 @@ public class ParquetKafkaDataConverter {
         // Parquet row, aka SimpleGroup:
         // - Its schema matches the present fields in the row
         // - Its fields are always lists, where empty list means null optional value, singleton list for present optional, required, or repeated-once value, multi-element list for repeated value
-        // Kafa row, aka Struct:
+        // Kafka row, aka Struct:
         // - Its schema matches the present fields in the row, same as Parquet
-        // - Its fields are NOT always lists: null means null optioanl value, non-collection object for present optional or required value, a list for repeated value
+        // - Its fields are NOT always lists: null means null optional value, non-collection object for present optional or required value, a list for repeated value
         // This difference is due to type systems: List is reserved for Kafka's ARRAY type
         Struct result = new Struct(kafkaSchema);
         int fieldIndex = 0;
@@ -80,7 +80,7 @@ public class ParquetKafkaDataConverter {
     }
 
     /**
-     * Convert a Paruqet Group's Field that is repeated.  Returns a List of values.
+     * Convert a Parquet Group's Field that is repeated.  Returns a List of values.
      */
     private List<Object> convertFieldRepeated(final Schema parentSchema, final SimpleGroup group, final Type field, final int reps, final int fieldIndex) {
         List<Object> values = new ArrayList<>(reps);
@@ -88,7 +88,7 @@ public class ParquetKafkaDataConverter {
             // For repeated values as Groups, recurs into {@link #convert(Schema, SimpleGroup) convert} method.
             for (int r = 0; r < reps; r++) {
                 Object value = group.getObject(fieldIndex, r);
-                assert value instanceof SimpleGroup : "Array of structs";
+                assert value instanceof SimpleGroup : "Each repeated nested field should be SimpleGroup";
                 Schema kafkaFieldSchema = parentSchema.fields().get(fieldIndex).schema().valueSchema();
                 values.add(convert(kafkaFieldSchema, (SimpleGroup) value));
             }
