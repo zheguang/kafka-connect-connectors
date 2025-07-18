@@ -16,7 +16,13 @@ public class Endpoints {
     public static final String ONTAP_S3 = "ontaps3";
     public static final String STORAGEGRID_S3 = "storagegrids3";
 
-    static final ConfigDef CONFIG_DEF = new ConfigDef().define(ENDPOINT_TYPE, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Endpoint type: AwsS3, or OntapS3");
+    static final ConfigDef CONFIG_DEF = new ConfigDef().define(
+            ENDPOINT_TYPE,
+            ConfigDef.Type.STRING,
+            ConfigDef.NO_DEFAULT_VALUE,
+            ConfigDef.CaseInsensitiveValidString.in(AWS_S3, LOCAL_FILE, ONTAP_S3, STORAGEGRID_S3),
+            ConfigDef.Importance.HIGH,
+            "Endpoint type: AwsS3, or OntapS3");
 
     public static Endpoint of(Map<String, String> props) {
         AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);

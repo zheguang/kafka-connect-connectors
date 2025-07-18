@@ -13,6 +13,7 @@ public interface ExtentBased {
             .define(EXTENT_STRIDE,
                     ConfigDef.Type.LONG,
                     ExtentInputStream.DEFAULT_EXTENT_STRIDE,
+                    ConfigDef.Range.atLeast(8),
                     ConfigDef.Importance.LOW,
                     "Stream byte range per open request");
 

@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -59,6 +60,9 @@ public class StreamSourceConnectorTest {
 
     @Test
     public void defineDirectoryXorFiles() {
+        // configure
+        config.put(Decoders.DECODER_TYPE, Decoders.PARQUET);
+
         // null files and directory -- error
         var result = connector.validate(config);
         assertErrorWith(result, FILES_CONFIG, ERROR_FILES_XOR_DIRECTORY);

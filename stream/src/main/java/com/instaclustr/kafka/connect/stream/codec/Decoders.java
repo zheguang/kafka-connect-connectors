@@ -13,8 +13,13 @@ public class Decoders {
     public static final String DECODER_TYPE = "decoder.type";
     public static final String PARQUET = "parquet";
     public static final String TEXT = "text";
-    public static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(DECODER_TYPE, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Decoder type");
+    public static final ConfigDef CONFIG_DEF = new ConfigDef().define(
+            DECODER_TYPE,
+            ConfigDef.Type.STRING,
+            ConfigDef.NO_DEFAULT_VALUE,
+            ConfigDef.CaseInsensitiveValidString.in(PARQUET, TEXT),
+            ConfigDef.Importance.HIGH,
+            "Decoder type");
 
     public static Decoder<?> of(Endpoint endpoint, String filename, Map<String, String> config) throws IOException {
         String decoderType = decoderTypeOf(config);

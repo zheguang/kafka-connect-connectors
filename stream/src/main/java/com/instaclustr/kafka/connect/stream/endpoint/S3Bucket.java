@@ -24,9 +24,9 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
     public static String URL = "s3.url";
 
     public static ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(BUCKET_NAME, STRING, HIGH, "S3 bucket name")
-            .define(REGION, STRING, HIGH, "S3 Region")
-            .define(URL, STRING, "", HIGH, "S3 URL. Default to AWS's endpoint");
+            .define(BUCKET_NAME, STRING, null, new ConfigDef.NonEmptyStringWithoutControlChars(), HIGH, "S3 bucket name")
+            .define(REGION, STRING, null, new ConfigDef.NonEmptyStringWithoutControlChars(),  HIGH, "S3 Region")
+            .define(URL, STRING, null, new ConfigDef.NonEmptyStringWithoutControlChars(), HIGH, "S3 URL");
 
     private final TransferManager transferManager;
     private final String bucketName;

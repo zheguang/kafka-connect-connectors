@@ -2,9 +2,9 @@ package com.instaclustr.kafka.connect.stream;
 
 import com.instaclustr.kafka.connect.stream.codec.CodecError;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
-import org.apache.kafka.common.config.AbstractConfig;
-import org.apache.kafka.common.config.Config;
-import org.apache.kafka.common.config.ConfigDef;
+import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
+import com.instaclustr.kafka.connect.stream.endpoint.S3Bucket;
+import org.apache.kafka.common.config.*;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.ExactlyOnceSupport;
@@ -15,10 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -33,9 +31,34 @@ public class StreamSourceConnector extends SourceConnector {
     public static final String ERROR_FILES_XOR_DIRECTORY = "Should define either " + FILES_CONFIG + " xor " + DIRECTORY_CONFIG;
 
     static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(FILES_CONFIG, ConfigDef.Type.LIST, null, ConfigDef.Importance.HIGH, "Source filenames, default to files under the same directory.")
-            .define(DIRECTORY_CONFIG, ConfigDef.Type.STRING, null, ConfigDef.Importance.HIGH, "Source directory.")
-            .define(DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Type.LONG, DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES, ConfigDef.Importance.LOW, "The time to discover new directory files");
+            .define(FILES_CONFIG,
+                    ConfigDef.Type.LIST,
+                    null,
+                    (name, value) -> {
+                        if (value == null) {
+                            return;
+                        }
+                        if (!(value instanceof List)) {
+                            throw new ConfigException(name + ": Not a list");
+                        }
+                        for (Object v : (List) value) {
+                            new ConfigDef.NonEmptyStringWithoutControlChars().ensureValid(name, v);
+                        }
+                    },
+                    ConfigDef.Importance.HIGH,
+                    "Source filenames, default to files under the same directory.")
+            .define(DIRECTORY_CONFIG,
+                    ConfigDef.Type.STRING,
+                    null,
+                    new ConfigDef.NonEmptyStringWithoutControlChars(),
+                    ConfigDef.Importance.HIGH,
+                    "Source directory.")
+            .define(DIRECTORY_FILE_DISCOVERY_MINUTES,
+                    ConfigDef.Type.LONG,
+                    DEFAULT_DIRECTORY_FILE_DISCOVERY_MINUTES,
+                    ConfigDef.Range.atLeast(1),
+                    ConfigDef.Importance.LOW,
+                    "The time to discover new directory files");
 
     private AbstractConfig config;
     
@@ -121,17 +144,29 @@ public class StreamSourceConnector extends SourceConnector {
 
     @Override
     public Config validate(Map<String, String> connectorConfigs) {
-        Config superValidated = super.validate(connectorConfigs);
+        Config result = super.validate(connectorConfigs);
+
+        List<ConfigValue> otherValidated = Stream.of(
+                        Decoders.CONFIG_DEF.validate(connectorConfigs),
+                        Endpoints.CONFIG_DEF.validate(connectorConfigs),
+                        ExtentBased.CONFIG_DEF.validate(connectorConfigs),
+                        StreamSourceTask.CONFIG_DEF.validate(connectorConfigs),
+                        S3Bucket.CONFIG_DEF.validate(connectorConfigs))
+                .map(Collection::stream)
+                .reduce(Stream.empty(), Stream::concat)
+                .collect(toList());
+
+        result.configValues().addAll(otherValidated);
 
         AbstractConfig config = new AbstractConfig(CONFIG_DEF, connectorConfigs);
         if (! hasDefinedDirectoryXorFiles(config)) {
-            superValidated.configValues()
+            result.configValues()
                     .stream()
                     .filter(cv -> cv.name().equals(FILES_CONFIG) || cv.name().equals(DIRECTORY_CONFIG))
                     .forEach(cv -> cv.addErrorMessage(ERROR_FILES_XOR_DIRECTORY));
         }
 
-        return superValidated;
+        return result;
     }
 
     @Override

@@ -5,6 +5,7 @@ import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import com.instaclustr.kafka.connect.stream.codec.Record;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -28,12 +29,36 @@ public class StreamSourceTask extends SourceTask {
     public static final long DEFAULT_POLL_THROTTLE_MS = 1000;
 
     public static ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(TASK_FILES, ConfigDef.Type.LIST, ConfigDef.Importance.HIGH, "Files assigned to this task by the connector")
-            .define(TASK_BATCH_SIZE_CONFIG, ConfigDef.Type.INT, DEFAULT_TASK_BATCH_SIZE, ConfigDef.Importance.LOW,
+            .define(TASK_FILES,
+                    ConfigDef.Type.LIST,
+                    List.of(),
+                    new ConfigDef.NonNullValidator(),
+                    ConfigDef.Importance.HIGH,
+                    "Files assigned to this task by the connector")
+            .define(TASK_BATCH_SIZE_CONFIG,
+                    ConfigDef.Type.INT,
+                    DEFAULT_TASK_BATCH_SIZE,
+                    ConfigDef.Range.atLeast(1),
+                    ConfigDef.Importance.LOW,
                     "The maximum number of records the source task can read from the file each time it is polled")
-            .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, new ConfigDef.NonEmptyString(), ConfigDef.Importance.HIGH, "The topic to publish data to")
-            .define(READ_RETRIES, ConfigDef.Type.INT, DEFAULT_READ_RETRIES, ConfigDef.Importance.LOW, "The maximum number of retries on reading a stream")
-            .define(POLL_THROTTLE_MS, ConfigDef.Type.LONG, DEFAULT_POLL_THROTTLE_MS, ConfigDef.Importance.LOW, "The time to wait for throttle source polling");
+            .define(TOPIC_CONFIG,
+                    ConfigDef.Type.STRING,
+                    ConfigDef.NO_DEFAULT_VALUE,
+                    new ConfigDef.NonEmptyStringWithoutControlChars(),
+                    ConfigDef.Importance.HIGH,
+                    "The topic to publish data to")
+            .define(READ_RETRIES,
+                    ConfigDef.Type.INT,
+                    DEFAULT_READ_RETRIES,
+                    ConfigDef.Range.atLeast(0),
+                    ConfigDef.Importance.LOW,
+                    "The maximum number of retries on reading a stream")
+            .define(POLL_THROTTLE_MS,
+                    ConfigDef.Type.LONG,
+                    DEFAULT_POLL_THROTTLE_MS,
+                    ConfigDef.Range.atLeast(0),
+                    ConfigDef.Importance.LOW,
+                    "The time to wait for throttle source polling");
     
     public static final String FILENAME_FIELD = "filename";
     public static final String POSITION_FIELD = "position";
