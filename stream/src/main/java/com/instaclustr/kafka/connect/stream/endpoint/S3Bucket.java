@@ -44,10 +44,10 @@ public abstract class S3Bucket implements Endpoint, ExtentBased {
     }
 
     @Override
-    public InputStream openInputStream(String objectKey, long start, long length) throws IOException {
+    public InputStream openInputStream(String objectKey, long extentStart, long extentStride) throws IOException {
         try {
             GetObjectRequest getObjectRequest = new GetObjectRequest(bucketName, objectKey)
-                    .withRange(start, start + length - 1);
+                    .withRange(extentStart, extentStart + extentStride - 1);
             return Objects.requireNonNull(
                     getClient().getObject(getObjectRequest).getObjectContent(),
                     "No stream found");

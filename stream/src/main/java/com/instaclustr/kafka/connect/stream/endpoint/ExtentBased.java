@@ -16,5 +16,5 @@ public interface ExtentBased {
                     ConfigDef.Importance.LOW,
                     "Stream byte range per open request");
 
-    InputStream openInputStream(String filename, long start, long length) throws IOException;
+    InputStream openInputStream(String filename, long extentStart, long extentStride) throws IOException;
 }

@@ -31,11 +31,11 @@ public class LocalFile implements Endpoint, ExtentBased {
     }
 
     @Override
-    public InputStream openInputStream(String filename, long start, long length) throws IOException {
+    public InputStream openInputStream(String filename, long extentStart, long extentStride) throws IOException {
         InputStream is = openInputStream(filename);
-        long remaining = start;
+        long remaining = extentStart;
         while (remaining > 0) {
-            remaining -= is.skip(start);
+            remaining -= is.skip(extentStart);
         }
         return is;
     }
