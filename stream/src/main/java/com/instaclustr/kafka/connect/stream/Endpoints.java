@@ -22,7 +22,7 @@ public class Endpoints {
             ConfigDef.NO_DEFAULT_VALUE,
             ConfigDef.CaseInsensitiveValidString.in(AWS_S3, LOCAL_FILE, ONTAP_S3, STORAGEGRID_S3),
             ConfigDef.Importance.HIGH,
-            "Endpoint type: AwsS3, or OntapS3");
+            "Endpoint type: AwsS3, OntapS3, or StorageGridS3");
 
     public static Endpoint of(Map<String, String> props) {
         AbstractConfig config = new AbstractConfig(CONFIG_DEF, props);
