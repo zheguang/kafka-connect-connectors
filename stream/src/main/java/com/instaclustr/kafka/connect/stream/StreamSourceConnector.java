@@ -1,5 +1,6 @@
 package com.instaclustr.kafka.connect.stream;
 
+import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import com.instaclustr.kafka.connect.stream.codec.CodecError;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
 import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
@@ -147,6 +148,7 @@ public class StreamSourceConnector extends SourceConnector {
         Config result = super.validate(connectorConfigs);
 
         List<ConfigValue> otherValidated = Stream.of(
+                        CharDecoder.CONFIG_DEF.validate(connectorConfigs),
                         Decoders.CONFIG_DEF.validate(connectorConfigs),
                         Endpoints.CONFIG_DEF.validate(connectorConfigs),
                         ExtentBased.CONFIG_DEF.validate(connectorConfigs),

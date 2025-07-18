@@ -17,7 +17,12 @@ import java.util.Set;
 public class CharDecoder implements Decoder<String> {
     public static final String CHARACTER_SET = "character.set";
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(CHARACTER_SET, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Character set");
+            .define(CHARACTER_SET,
+                    ConfigDef.Type.STRING,
+                    "UTF-8",
+                    ConfigDef.CaseInsensitiveValidString.in("UTF-8", "UTF-16"),
+                    ConfigDef.Importance.HIGH,
+                    "Character set for text format");
 
     private static final Logger log = LoggerFactory.getLogger(CharDecoder.class);
 
