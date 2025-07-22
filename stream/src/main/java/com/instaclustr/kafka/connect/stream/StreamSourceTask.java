@@ -142,12 +142,12 @@ public class StreamSourceTask extends SourceTask {
             List<? extends Record<?>> batch = decoder.next(batchSize);
             if (batch == null) {
                 numTries++;
-                log.debug("Stream is not available to read, at try: {}, file: {}", numTries, filename);
+                log.info("Stream is not available to read, at try: {}, file: {}", numTries, filename);
                 if (numTries > maxReadRetries) { // 1 + retries = total number of tries
-                    log.debug("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
+                    log.info("Reached retry limit: {}, tries: {}, file: {}", maxReadRetries, numTries, filename);
                     closeForNextFile();
                 } else if (isEof(filename)) {
-                    log.debug("Continual reads reached EOF: {}", filename);
+                    log.info("Continual reads reached EOF: {}", filename);
                     closeForNextFile();
                 }
                 waitForThrottle();
@@ -179,8 +179,7 @@ public class StreamSourceTask extends SourceTask {
             // indicate no result
             return records;
         } catch (IOException e) {
-            log.debug("Error in reading records", e);
-            log.warn("Underlying stream was killed, probably due to calling stop. Poll will return null");
+            log.error("Error in reading records", e);
             closeForNextFile();
             waitForThrottle();
         }
@@ -188,20 +187,20 @@ public class StreamSourceTask extends SourceTask {
     }
 
     private Decoder<?> maybeGetNextFileDecoder() {
-        log.debug("Looking for next file to read, total files: {}", filenames.size());
+        log.info("Looking for next file to read, total files: {}", filenames.size());
         Decoder<?> result = null;
         for (int i = 0; i < filenames.size() && result == null; i++) {
             String filename = filenames.element();
 
             Map<String, Object> state = context.offsetStorageReader()
                     .offset(Collections.singletonMap(FILENAME_FIELD, filename));
-            log.debug("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
+            log.info("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
             Optional<Long> lastReadOffset = getLastReadOffset(state);
             Optional<Double> lastReadProgress = getLastReadProgress(state);
 
             try {
                 if (isEofByOffset(lastReadOffset, filename) || isEofByProgress(lastReadProgress)) {
-                    log.debug("Skip opening stream, last read was at end of file: {}", filename);
+                    log.info("Skip opening stream, last read was at end of file: {}", filename);
                     closeForNextFile();
                     continue;
                 }
@@ -210,9 +209,9 @@ public class StreamSourceTask extends SourceTask {
 
                 if (lastReadOffset.isPresent()) {
                     result.skipFirstBytes(lastReadOffset.get());
-                    log.debug("Skipped to offset {}", lastReadOffset.get());
+                    log.info("Skipped to offset: {}, file: {}", lastReadOffset.get(), filename);
                 }
-                log.debug("Opened {} for reading", filename);
+                log.info("Opened {} for reading", filename);
             } catch (IOException e) {
                 log.error("Error while trying to open stream {}: ", filename, e);
                 closeForNextFile(); // Set decoder to null
@@ -275,7 +274,7 @@ public class StreamSourceTask extends SourceTask {
     }
 
     private void closeForNextFile() {
-        log.debug("Preparing for next file after closing file: {}", filenames.peek());
+        log.info("Preparing for next file after closing file: {}", filenames.peek());
         // Move file to last in list to read, reset decoder
         maybeCloseDecoder();
         decoder = null;
