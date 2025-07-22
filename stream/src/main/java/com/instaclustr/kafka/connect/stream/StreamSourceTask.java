@@ -161,16 +161,16 @@ public class StreamSourceTask extends SourceTask {
             }
 
             List<SourceRecord> records = new ArrayList<>();
-            for (var charRecord : batch) {
+            for (var r : batch) {
                 records.add(new SourceRecord(
                             offsetKey(filename), 
-                            offsetValue(charRecord.getStreamOffset(), charRecord.getStreamProgress()), 
+                            offsetValue(r.getStreamOffset(), r.getStreamProgress()), 
                             topic,
                             null, 
                             null, 
                             null, 
-                            charRecord.getSchema(), 
-                            charRecord.getRecord(), 
+                            r.getSchema(), 
+                            r.getRecord(), 
                             System.currentTimeMillis()));
             }
             log.debug("Return records after decoding or waiting, size: {}, tries: {}", records.size(), numTries);
@@ -194,7 +194,7 @@ public class StreamSourceTask extends SourceTask {
 
             Map<String, Object> state = context.offsetStorageReader()
                     .offset(Collections.singletonMap(FILENAME_FIELD, filename));
-            log.info("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
+            log.debug("Read offset: {}, thread: {}, file: {}", state, Thread.currentThread().getName(), filename);
             Optional<Long> lastReadOffset = getLastReadOffset(state);
             Optional<Double> lastReadProgress = getLastReadProgress(state);
 

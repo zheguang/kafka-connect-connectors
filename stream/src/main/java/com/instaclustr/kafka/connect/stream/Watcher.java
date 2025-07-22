@@ -50,7 +50,7 @@ public class Watcher implements Closeable {
                         log.debug("Condition not met, thread: {}", Thread.currentThread().getName());
                     }
                 } catch (Exception e) {
-                    log.warn("Error in watching condition or action", e);
+                    log.warn("Error in condition or action", e);
                 }
 	        });
 	        try {
