@@ -3,6 +3,7 @@ package com.instaclustr.kafka.connect.stream;
 import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import com.instaclustr.kafka.connect.stream.codec.CodecError;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
+import com.instaclustr.kafka.connect.stream.endpoint.AccessKeyBased;
 import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
 import com.instaclustr.kafka.connect.stream.endpoint.S3Bucket;
 import org.apache.kafka.common.config.*;
@@ -148,6 +149,7 @@ public class StreamSourceConnector extends SourceConnector {
         Config result = super.validate(connectorConfigs);
 
         List<ConfigValue> otherValidated = Stream.of(
+                        AccessKeyBased.CONFIG_DEF.validate(connectorConfigs),
                         CharDecoder.CONFIG_DEF.validate(connectorConfigs),
                         Decoders.CONFIG_DEF.validate(connectorConfigs),
                         Endpoints.CONFIG_DEF.validate(connectorConfigs),

@@ -50,13 +50,13 @@ public class Watcher implements Closeable {
                         log.debug("Condition not met, thread: {}", Thread.currentThread().getName());
                     }
                 } catch (Exception e) {
-                    log.error("Error in watching condition or action", e);
+                    log.warn("Error in watching condition or action", e);
                 }
 	        });
 	        try {
                 future.get(checkTimeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (TimeoutException | InterruptedException | ExecutionException e) {
-                log.error("Unable to wait for condition to meet, canceling the action", e);
+                log.warn("Unable to wait for condition to meet, canceling the action", e);
                 future.cancel(true);
             }
 	    }, checkDelay.toMillis(), checkDelay.toMillis(), TimeUnit.MILLISECONDS);

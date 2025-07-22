@@ -12,5 +12,5 @@ public interface AccessKeyBased {
 
     ConfigDef CONFIG_DEF = new ConfigDef()
                 .define(ACCESS_KEY, PASSWORD, HIGH, "Access key")
-                .define(ACCESS_KEY_ID, STRING, HIGH, "Access key id");
+                .define(ACCESS_KEY_ID, STRING, null, new ConfigDef.NonEmptyStringWithoutControlChars(), HIGH, "Access key id");
 }

@@ -11,17 +11,24 @@ import static org.testng.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.instaclustr.kafka.connect.stream.codec.CharDecoder;
 import com.instaclustr.kafka.connect.stream.codec.Decoders;
+import com.instaclustr.kafka.connect.stream.endpoint.AccessKeyBased;
+import com.instaclustr.kafka.connect.stream.endpoint.ExtentBased;
+import com.instaclustr.kafka.connect.stream.endpoint.S3Bucket;
+
 import org.apache.kafka.common.config.Config;
 import org.apache.kafka.common.config.ConfigValue;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -56,6 +63,30 @@ public class StreamSourceConnectorTest {
     @AfterMethod
     public void tearDown() {
         connector.stop();
+    }
+
+    @Test
+    public void correctConfig() {
+        var correctConfig = new HashMap<String, String>();
+        correctConfig.put(AccessKeyBased.ACCESS_KEY_ID, "myKeyId");
+        correctConfig.put(AccessKeyBased.ACCESS_KEY, "myKey");
+        correctConfig.put(Decoders.DECODER_TYPE, Decoders.TEXT);
+        correctConfig.put(CharDecoder.CHARACTER_SET, Charset.forName("utf-8").name());
+        correctConfig.put(Endpoints.ENDPOINT_TYPE, Endpoints.STORAGEGRID_S3);
+        correctConfig.put(S3Bucket.BUCKET_NAME, "myBucketName");
+        correctConfig.put(S3Bucket.REGION, "myRegion");
+        correctConfig.put(S3Bucket.URL, "myUrl");
+        correctConfig.put(StreamSourceTask.TOPIC_CONFIG, "myTopic");
+        correctConfig.put(StreamSourceConnector.FILES_CONFIG, "myFile");
+
+        var validatedConfig = connector.validate(correctConfig);
+        List<String> errors = new LinkedList<>();
+        for (ConfigValue v : validatedConfig.configValues()) {
+            if (! v.errorMessages().isEmpty()) {
+                errors.addAll(v.errorMessages());
+            }
+        }
+        assertTrue(errors.isEmpty());
     }
 
     @Test
