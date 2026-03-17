@@ -2,6 +2,7 @@ package com.instaclustr.kafka.connect.stream.codec;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 public interface Decoder<T> extends Closeable {
@@ -17,4 +18,6 @@ public interface Decoder<T> extends Closeable {
     List<Record<T>> next(int batchSize) throws IOException;
 
     void skipFirstBytes(final long numBytes) throws IOException;
+
+    InputStream getStream();
 }

@@ -77,6 +77,12 @@ public class StreamSourceTask extends SourceTask {
     private Decoder<?> decoder = null;
     private int numTries = 0;
 
+    // Autotune
+    long prevDuration = -1;
+    double eps = 0.01;
+    long step = 10_000;
+    long minStep = 1000;
+    
     // For Connect runtime to load this class
     public StreamSourceTask() {
     }
@@ -118,6 +124,61 @@ public class StreamSourceTask extends SourceTask {
      *         otherwise; never an empty list.
      * @throws InterruptedException
      */
+
+    public List<SourceRecord> pollAt() throws InterruptedException, IOException {
+        long start = System.currentTimeMillis();
+        var result = poll();
+        long duration = System.currentTimeMillis() - start;
+        log.warn("batch size: {}, duration: {}", result.size(), duration);
+
+        /*
+        // Only tune if the result is a batch size
+        if (result != null && result.size() == batchSize) {
+            // Case 0: if step size is too small, stop tuning forever
+            if (step < minStep) {
+                log.warn("step is too small, stop tuning. Step: {}", step);
+                return result;
+            }
+
+            var stream = (ExtentInputStream) decoder.getStream();
+
+            // Case 0.1: if this is the first poll, record duration, step forward
+            if (prevDuration == -1) {
+                prevDuration = duration;
+                stream.setExtentStride(stream.getExtentStride() + step);
+                stream.skip(0);
+                return result;
+            }
+
+            // Case 1: Duration increases -> halve step size, step back 
+            if (duration > prevDuration * (1 + eps)) {
+                step >>= 1;
+                stream.setExtentStride(stream.getExtentStride() - step);
+                stream.skip(0);
+                prevDuration = duration;
+                log.warn("Duration increase, duration: {}, step: {}, next extent: {}", duration, step, stream.getExtentStride());
+            }
+            // Case 2: Duration decreases -> step forward
+            else if (duration < prevDuration * (1 - eps)) {
+                stream.setExtentStride(stream.getExtentStride() + step);
+                stream.skip(0);
+                prevDuration = duration;
+                log.warn("Duration drops, duration: {}, step: {}, next extent: {}", duration, step, stream.getExtentStride());
+            }
+            // Case 3: Duration stays the same -> halve step size, step back
+            else {
+                step >>= 1;
+                stream.setExtentStride(stream.getExtentStride() - step);
+                stream.skip(0);
+                prevDuration = duration;
+                log.warn("Duration same, duration: {}, step: {}, next extent: {}", duration, step, stream.getExtentStride());
+            }
+        }
+        */
+
+        return result;
+    }
+
     @Override
     public List<SourceRecord> poll() throws InterruptedException {
         // Process a list of files one by one

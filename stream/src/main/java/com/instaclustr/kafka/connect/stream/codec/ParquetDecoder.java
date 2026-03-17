@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,10 +20,12 @@ public class ParquetDecoder implements Decoder<Struct> {
     private static final Logger log = LoggerFactory.getLogger(ParquetDecoder.class);
     private final StreamParquetReader reader;
     private final ParquetKafkaDataConverter converter;
+    private final InputStream stream;
 
-    public ParquetDecoder(StreamParquetReader reader, ParquetKafkaDataConverter converter) {
+    public ParquetDecoder(StreamParquetReader reader, ParquetKafkaDataConverter converter, InputStream stream) {
         this.reader = reader;
         this.converter = converter;
+        this.stream = stream;
     }
 
     public static ParquetDecoder from(RandomAccessInputStream rais) throws IOException {
@@ -39,7 +42,7 @@ public class ParquetDecoder implements Decoder<Struct> {
         };
         StreamParquetReader reader = new StreamParquetReader(new StreamInputFile(() -> sis, rais.getSize()));
         ParquetKafkaDataConverter converter = ParquetKafkaDataConverter.newConverter();
-        return new ParquetDecoder(reader, converter);
+        return new ParquetDecoder(reader, converter, rais);
     }
 
     @Override
@@ -69,5 +72,10 @@ public class ParquetDecoder implements Decoder<Struct> {
     @Override
     public void close() throws IOException {
         reader.close();
+    }
+
+    @Override
+    public InputStream getStream() {
+        return stream;
     }
 }

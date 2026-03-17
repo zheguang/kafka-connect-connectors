@@ -216,4 +216,9 @@ public class CharDecoder implements Decoder<String> {
     long getStreamOffset() {
         return streamOffset;
     }
+
+    @Override
+    public InputStream getStream() {
+        return stream;
+    }
 }

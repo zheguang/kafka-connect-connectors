@@ -15,7 +15,7 @@ public class ExtentInputStream extends RandomAccessInputStream {
     private final long fileSize;
     private final ExtentBased endpoint;
 
-    public final long extentStride; // Expected extent size; last one may be less
+    private long extentStride; // Expected extent size; last one may be less
     private long extentSize; // Actual size of extent; equal stride except possibly the last one
     private long extentStartOffset;
     private long extentPosition; // byte position within extent
@@ -214,5 +214,14 @@ public class ExtentInputStream extends RandomAccessInputStream {
     @Override
     public long getSize() {
 	return fileSize;
+    }
+
+    // Auto tune
+    public long getExtentStride() {
+        return extentStride;
+    }
+
+    public void setExtentStride(long stride) {
+        extentStride = stride;
     }
 }
